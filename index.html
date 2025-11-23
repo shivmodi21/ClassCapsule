@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Speech → TXT</title>
+  <style>
+    body { font-family: system-ui, Arial; max-width: 720px; margin: 2rem auto; padding: 1rem; }
+    button, select { padding: 0.6rem 1rem; margin-right: 0.5rem; }
+    #transcript { white-space: pre-wrap; border: 1px solid #ddd; padding: 1rem; min-height: 150px; margin-top: 1rem; }
+    .status { margin-top: .5rem; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Lecture Recording (Transcript)</h1>
+
+  <!-- Language Selector -->
+  <label for="langSelect"><b>Language:</b></label>
+  <select id="langSelect">
+    <option value="en-US">English (US)</option>
+    <option value="en-IN">English (India)</option>
+    <option value="hi-IN">Hindi</option>
+    <option value="gu-IN">Gujarati</option>
+    <option value="ta-IN">Tamil</option>
+    <option value="kn-IN">Kannada</option>
+    <option value="mr-IN">Marathi</option>
+    <option value="te-IN">Telugu</option>
+  </select>
+
+  <div style="margin-top: 1rem;">
+    <button id="startBtn">Start</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <button id="downloadBtn" disabled>Download .txt</button>
+  </div>
+
+  <div class="status" id="status">Status: idle</div>
+
+  <div id="transcript" contenteditable="true"></div>
+
+  <script>
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const support = !!Recognition;
+
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statusEl = document.getElementById('status');
+    const transcriptEl = document.getElementById('transcript');
+    const langSelect = document.getElementById('langSelect');
+
+    if (!support) {
+      statusEl.innerText = "Web Speech API not supported. Use Chrome/Edge.";
+    }
+
+    let recog = support ? new Recognition() : null;
+
+    function applyLanguage() {
+      if (recog) {
+        recog.lang = langSelect.value;
+        console.log("Language set:", recog.lang);
+      }
+    }
+
+    if (recog) {
+      recog.continuous = true;
+      recog.interimResults = true;
+
+      applyLanguage(); // initial
+
+      recog.onstart = () => { statusEl.innerText = 'Status: listening...'; };
+      recog.onend = () => {
+        statusEl.innerText = 'Status: stopped';
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      };
+      recog.onerror = (e) => { statusEl.innerText = 'Error: ' + e.error; };
+
+      recog.onresult = (ev) => {
+        let final = '';
+        let interim = '';
+        for (let i = 0; i < ev.results.length; i++) {
+          const r = ev.results[i];
+          if (r.isFinal) final += r[0].transcript;
+          else interim += r[0].transcript;
+        }
+        transcriptEl.innerText = (final + (interim ? "\n\n[partial]\n" + interim : "")).trim();
+        downloadBtn.disabled = transcriptEl.innerText.trim().length === 0;
+      };
+    }
+
+    // Change language immediately
+    langSelect.addEventListener('change', () => {
+      applyLanguage();
+      if (recog) try { recog.stop(); } catch {}
+    });
+
+    startBtn.onclick = () => {
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      applyLanguage();
+      try { recog.start(); } catch {}
+    };
+
+    stopBtn.onclick = () => {
+      recog.stop();
+    };
+
+    downloadBtn.onclick = () => {
+      const text = transcriptEl.innerText.trim();
+      if (!text) return;
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "transcript.txt";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+  </script>
+</body>
+</html>

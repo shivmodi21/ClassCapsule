@@ -1,4 +1,3 @@
-````md
 # 🎓 ClassCapsule – Student Assistant
 
 ClassCapsule is a lightweight **Student Assistant** designed to help summarize lecture transcripts and assist students during learning.  

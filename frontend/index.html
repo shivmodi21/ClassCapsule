@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Speech → TXT</title>
+  <title>Class Capsule</title>
   <style>
     body { font-family: system-ui, Arial; max-width: 720px; margin: 2rem auto; padding: 1rem; }
     button, select { padding: 0.6rem 1rem; margin-right: 0.5rem; }
@@ -67,6 +67,8 @@
     const langSelect = document.getElementById('langSelect');
     const lectureNameInput = document.getElementById("lectureName");
     const lectureError = document.getElementById("lectureError");
+    const summarizeBtn = document.getElementById("summarizeBtn");
+    const summaryEl = document.getElementById("summary");
 
     downloadSummaryBtn.disabled = true;
 
@@ -88,6 +90,14 @@
       const invalidChars = /[<>:"/\\|?*\x00-\x1F]/;
       return !invalidChars.test(name);
     }
+
+    function updateButtons() {
+      const hasText = transcriptEl.innerText.trim().length > 0;
+      downloadTranscriptBtn.disabled = !hasText;
+      summarizeBtn.disabled = !hasText;
+    }
+
+    transcriptEl.addEventListener("input", updateButtons);
 
     if (recog) {
       recog.continuous = true;
@@ -112,6 +122,7 @@
           else interim += r[0].transcript;
         }
         transcriptEl.innerText = (final + (interim ? "\n\n[partial]\n" + interim : "")).trim();
+        updateButtons();
         downloadTranscriptBtn.disabled = transcriptEl.innerText.trim().length === 0;
       };
     }
@@ -164,19 +175,6 @@
     };
 
 
-
-    const summarizeBtn = document.getElementById("summarizeBtn");
-    const summaryEl = document.getElementById("summary");
-
-    function updateButtons() {
-      const hasText = transcriptEl.innerText.trim().length > 0;
-      downloadTranscriptBtn.disabled = !hasText;
-      summarizeBtn.disabled = !hasText;
-    }
-
-    // modify your onresult handler slightly
-    // after transcriptEl.innerText = ...
-    updateButtons();
 
     summarizeBtn.onclick = async () => {
       lectureError.innerText = "";

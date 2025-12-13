@@ -1,8 +1,11 @@
 # filename: app.py
 from typing import List, Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+import whisper
+import tempfile
+import os
 import uuid
 import asyncio
 from gpt4all import GPT4All
@@ -51,8 +54,9 @@ class ModelClient:
 
         return final_summary.strip()
 
-# instantiate model client (swap in real client)
-model_client = ModelClient()
+# instantiate model client and whisper model globally
+model_client = None
+whisper_model = None
 
 # --- FastAPI app ---
 app = FastAPI(title="Lecture Summarizer API", version="1.0")
@@ -144,6 +148,13 @@ def chunk_transcript(transcript: str, max_chars: int = 4000) -> List[SummarizeCh
     flush_chunk()
     return chunks
 
+def save_text_to_file(folder: str, filename: str, content: str):
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
 # --- Prompt builder ---
 def build_prompt_for_chunk(chunk: SummarizeChunk, options: SummaryOptions, idx: int, total: int) -> str:
     """
@@ -175,8 +186,13 @@ def build_prompt_for_chunk(chunk: SummarizeChunk, options: SummaryOptions, idx: 
 # --- Main summarization endpoint ---
 @app.post("/v1/summarize", response_model=SummarizeResponse)
 async def summarize(req: SummarizeRequest):
+    global model_client
+    
     if not req.transcript or len(req.transcript.strip()) == 0:
         raise HTTPException(status_code=400, detail="Transcript is empty")
+    
+    if model_client is None:
+        model_client = ModelClient()
 
     # chunk transcript
     # choose chunk size based on expected model context; adjust as desired
@@ -202,6 +218,15 @@ async def summarize(req: SummarizeRequest):
     except Exception as e:
         # fallback: naive concatenation
         final_summary = "\n\n".join(partial_summaries)
+
+    lecture_name = req.lecture_title or "lecture"
+    lecture_name = lecture_name.replace(" ", "_")
+
+    save_text_to_file(
+        "data/summaries",
+        f"{lecture_name}_summary.txt",
+        final_summary
+    )
 
     # Optionally extract Q&A and actions from the consolidated summary via additional model calls
     qna, actions = None, None
@@ -230,6 +255,49 @@ async def summarize(req: SummarizeRequest):
         actions=actions,
     )
     return response
+
+
+@app.post("/v1/transcribe")
+async def transcribe_audio(file: UploadFile = File(...)):
+    global whisper_model
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No file uploaded")
+
+    # Load Whisper model lazily
+    if whisper_model is None:
+        whisper_model = whisper.load_model("base")  # base is good for prototype
+
+    # Save uploaded audio to temp file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        contents = await file.read()
+        tmp.write(contents)
+        tmp_path = tmp.name
+
+    try:
+        result = whisper_model.transcribe(tmp_path)
+        transcript_text = result["text"].strip()
+        detected_language = result.get("language")
+
+        safe_name = os.path.splitext(file.filename)[0]
+        safe_name = safe_name.replace(" ", "_")
+
+        save_text_to_file(
+            "data/transcripts",
+            f"{safe_name}_transcript.txt",
+            transcript_text
+        )
+
+    finally:
+        os.remove(tmp_path)
+
+    if not transcript_text:
+        raise HTTPException(status_code=500, detail="Transcription failed")
+
+    return {
+        "transcript": transcript_text,
+        "language": detected_language
+    }
 
 # --- Health and example endpoints ---
 @app.get("/health")

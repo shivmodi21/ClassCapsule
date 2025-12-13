@@ -24,6 +24,19 @@
     <div class="status" id="lectureError" style="color:red;"></div>
   </div>
 
+  <h3>Upload Lecture Audio</h3>
+
+  <input
+    type="file"
+    id="audioFileInput"
+    accept="audio/*"
+  />
+  <button id="uploadAudioBtn">Upload & Transcribe</button>
+
+  <div class="status" id="audioStatus"></div>
+  <div class="status" id="detectedLanguage"></div>
+
+  <hr style="margin:1.5rem 0;">
 
   <!-- Language Selector -->
   <label for="langSelect"><b>Language:</b></label>
@@ -41,20 +54,25 @@
   <div style="margin-top: 1rem;">
     <button id="startBtn">Start</button>
     <button id="stopBtn" disabled>Stop</button>
-    <button id="downloadTranscriptBtn" disabled>Download Transcript</button>
-    <button id="summarizeBtn" disabled>Summarize</button>
-    <button id="downloadSummaryBtn" disabled>Download Summary</button>
+    <button id="clearBtn">Clear & New Lecture</button>
   </div>
 
   <div class="status" id="status">Status: IDLE</div>
 
   <div id="transcript" contenteditable="true"></div>
+  
+  <div style="margin-top: 1rem;">
+    <button id="downloadTranscriptBtn" disabled>Download Transcript</button>
+    <button id="summarizeBtn" disabled>Summarize</button>
+    <button id="downloadSummaryBtn" disabled>Download Summary</button>
+  </div>
 
-  <h2>Summary</h2>
+  <h2 id="summaryTitle">Summary</h2>
   <div id="summary" style="white-space: pre-wrap; border:1px solid #ddd; padding:1rem;"></div>
 
 
   <script>
+    let inputMode = null; // "live" or "upload"
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const support = !!Recognition;
 
@@ -69,6 +87,14 @@
     const lectureError = document.getElementById("lectureError");
     const summarizeBtn = document.getElementById("summarizeBtn");
     const summaryEl = document.getElementById("summary");
+
+    const audioFileInput = document.getElementById("audioFileInput");
+    const uploadAudioBtn = document.getElementById("uploadAudioBtn");
+    const audioStatus = document.getElementById("audioStatus");
+    const detectedLanguageEl = document.getElementById("detectedLanguage");
+
+    const clearBtn = document.getElementById("clearBtn");
+
 
     downloadSummaryBtn.disabled = true;
 
@@ -97,7 +123,70 @@
       summarizeBtn.disabled = !hasText;
     }
 
-    transcriptEl.addEventListener("input", updateButtons);
+    function enableLiveRecordingMode() {
+      inputMode = "live";
+
+      // disable audio upload
+      audioFileInput.disabled = true;
+      uploadAudioBtn.disabled = true;
+
+      audioStatus.innerText = "Audio upload disabled while recording.";
+    }
+
+    function enableAudioUploadMode() {
+      inputMode = "audio";
+
+      // disable live recording
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+
+      statusEl.innerText = "Live recording disabled while using audio upload.";
+    }
+
+    function resetInputModes() {
+      inputMode = null;
+
+      // enable everything
+      audioFileInput.disabled = false;
+      uploadAudioBtn.disabled = false;
+
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+
+      audioStatus.innerText = "";
+      statusEl.innerText = "Status: IDLE";
+    }
+
+    function resetLecture() {
+      // Clear text areas
+      transcriptEl.innerText = "";
+      summaryEl.innerText = "";
+
+      // Clear inputs
+      lectureNameInput.value = "";
+      audioFileInput.value = "";
+
+      // Reset statuses
+      statusEl.innerText = "Status: IDLE";
+      audioStatus.innerText = "";
+      lectureError.innerText = "";
+
+      // Reset buttons
+      downloadTranscriptBtn.disabled = true;
+      downloadSummaryBtn.disabled = true;
+      summarizeBtn.disabled = true;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+
+      // Reset input modes
+      resetInputModes();
+    }
+
+    transcriptEl.addEventListener("input", () => {
+      resetInputModes();
+      updateButtons();
+    });
+
 
     if (recog) {
       recog.continuous = true;
@@ -110,6 +199,8 @@
         statusEl.innerText = 'Status: stopped';
         startBtn.disabled = false;
         stopBtn.disabled = true;
+
+        resetInputModes();
       };
       recog.onerror = (e) => { statusEl.innerText = 'Error: ' + e.error; };
 
@@ -133,7 +224,13 @@
       if (recog) try { recog.stop(); } catch {}
     });
 
+    audioFileInput.addEventListener("change", () => {
+      audioStatus.innerText = "";
+    });
+    
     startBtn.onclick = () => {
+      enableLiveRecordingMode();
+
       startBtn.disabled = true;
       stopBtn.disabled = false;
       applyLanguage();
@@ -143,6 +240,61 @@
     stopBtn.onclick = () => {
       recog.stop();
     };
+
+    clearBtn.onclick = () => {
+      if (confirm("Clear current lecture and start a new one?")) {
+        resetLecture();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+
+    uploadAudioBtn.onclick = async () => {
+      if (inputMode === "live") {
+        audioStatus.innerText = "Stop live recording before uploading audio.";
+        return;
+      }
+      const file = audioFileInput.files[0];
+      if (!file) {
+        audioStatus.innerText = "Please select an audio file.";
+        return;
+      }
+
+      enableAudioUploadMode();
+      audioStatus.innerText = "Uploading & transcribing… this may take 1–2 minutes.";
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch("http://127.0.0.1:8000/v1/transcribe", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!res.ok) throw new Error("Transcription failed");
+
+        const data = await res.json();
+
+        transcriptEl.innerText = data.transcript;
+        audioStatus.innerText = "Transcription complete.";
+
+        if (data.language) {
+          detectedLanguageEl.innerText = "Detected language: " + data.language.toUpperCase();
+        }
+
+        resetInputModes();
+        updateButtons();
+
+        // enable transcript-related buttons
+        downloadTranscriptBtn.disabled = false;
+        summarizeBtn.disabled = false;
+
+      } catch (err) {
+        console.error(err);
+        audioStatus.innerText = "Error during transcription.";
+      }
+    };
+
 
     downloadTranscriptBtn.onclick = () => {
       const lectureName = lectureNameInput.value.trim();
@@ -178,6 +330,11 @@
 
     summarizeBtn.onclick = async () => {
       lectureError.innerText = "";
+
+      // disable summarize during processing
+      summarizeBtn.disabled = true;
+      downloadSummaryBtn.disabled = true;
+      summaryEl.innerText = "Summarizing... please wait (this may take 1-3 minutes).";
 
       const lectureName = lectureNameInput.value.trim();
       if (!lectureName) {
@@ -224,11 +381,19 @@
 
         const data = await res.json();
         summaryEl.innerText = data.summary_text;
+
+        // enable buttons again
         downloadSummaryBtn.disabled = false;
+        summarizeBtn.disabled = false;
+
+        document.getElementById("summaryTitle").scrollIntoView({ behavior: "smooth" });
 
       } catch (err) {
         summaryEl.innerText = "Error connecting to backend.";
         console.error(err);
+
+        // re-enable summarize so user can retry
+        summarizeBtn.disabled = false;
       }
     };
 

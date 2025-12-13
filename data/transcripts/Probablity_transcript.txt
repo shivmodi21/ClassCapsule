@@ -1,0 +1,38 @@
+Good morning everyone. Today, we’re going to begin our discussion on probability, which is a fundamental concept in mathematics and forms the backbone of statistics, data science, machine learning, and many real-world decision-making processes.
+
+
+
+
+At its core, probability measures how likely an event is to occur. Whenever we ask questions like “What are the chances of rain tomorrow?” or “How likely is it that this machine will fail?”, we are thinking in terms of probability. Formally, probability is expressed as a number between 0 and 1, where 0 means the event is impossible and 1 means the event is certain.
+
+
+
+
+Let’s start with a simple example. Suppose we toss a fair coin. There are two possible outcomes: heads or tails. Since the coin is fair, both outcomes are equally likely. Therefore, the probability of getting heads is one favorable outcome divided by two possible outcomes, which gives us a probability of one-half, or 0.5.
+
+
+
+
+This leads us to an important idea known as the sample space. The sample space is the set of all possible outcomes of a random experiment. For the coin toss, the sample space consists of heads and tails. For a six-sided die, the sample space contains the numbers one through six. Any subset of the sample space is called an event.
+
+
+
+
+Now, how do we calculate probability? When all outcomes are equally likely, we use a simple formula:
+
+the probability of an event equals the number of favorable outcomes divided by the total number of possible outcomes. However, not all situations are this straightforward, and later we’ll see examples where outcomes have different probabilities.
+
+
+
+
+Another key concept is the difference between theoretical probability and experimental probability. Theoretical probability is based on mathematical reasoning, like the coin and dice examples we just discussed. Experimental probability, on the other hand, is based on actual observations. For example, if you toss a coin 100 times and observe heads 47 times, the experimental probability of heads is 47 divided by 100.
+
+
+
+
+As the number of trials increases, experimental probability tends to get closer to theoretical probability. This idea is known as the Law of Large Numbers, and it plays a crucial role in statistics and real-world data analysis.
+
+
+
+
+To summarize, probability helps us quantify uncertainty. By understanding sample spaces, events, and probability calculations, we build a foundation that will allow us to analyze more complex situations in future lectures. In the next class, we’ll explore conditional probability and independence, which will deepen our understanding even further.

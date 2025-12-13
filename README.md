@@ -16,7 +16,7 @@ It uses a **FastAPI backend** and a simple **HTML frontend**, making it easy to 
 ## 🛠️ Tech Stack
 - **Backend:** Python, FastAPI, Uvicorn
 - **Frontend:** HTML, CSS, JavaScript
-- **Environment:** Python Virtual Environment (`venv`)
+- **Environment:** Python Virtual Environment (`.venv`)
 
 ---
 

@@ -4,47 +4,55 @@ from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import uuid
-import os
 import asyncio
+from gpt4all import GPT4All
 
-# --- Replace this with actual model client (OpenAI, etc.) ---
-# Example minimal interface used below:
 class ModelClient:
-    """
-    Implement `async def summarize_chunks(self, prompts: List[str]) -> List[str]`
-    to call preferred LLM or summarization model. The example below uses a
-    hypothetical async call; replace with real SDK calls (openai.ChatCompletion.acreate, etc.).
-    """
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key
+    def __init__(self):
+        # model will be downloaded automatically on first run
+        self.model = GPT4All(
+            model_name="mistral-7b-instruct-v0.1.Q4_0.gguf",
+            allow_download=True
+        )
 
     async def summarize_chunks(self, prompts: List[str]) -> List[str]:
-        await asyncio.sleep(0.1 * len(prompts))
         summaries = []
 
-        for p in prompts:
-            if "=== LECTURE TEXT START ===" in p:
-                text = p.split("=== LECTURE TEXT START ===")[1]
-                text = text.split("=== LECTURE TEXT END ===")[0].strip()
-            else:
-                text = p
-
-            # very simple fake summary: first 2 sentences
-            sentences = text.split(".")
-            summary = ". ".join(sentences[:2]).strip()
-
-            summaries.append(f"- {summary}.")
+        for prompt in prompts:
+            # run blocking model call in thread (important for FastAPI)
+            summary = await asyncio.to_thread(
+                self.model.generate,
+                prompt,
+                max_tokens=200,
+                temp=0.3
+            )
+            summaries.append(summary.strip())
 
         return summaries
 
-
     async def consolidate_summaries(self, partials: List[str], query: str) -> str:
-        # Replace with a call that instructs the model to combine partial summaries
-        await asyncio.sleep(0.1)
-        return "\n".join(partials)
+        combined_text = "\n".join(partials)
+
+        final_prompt = f"""
+            You are an academic assistant.
+            Combine the following partial summaries into a clear, concise lecture summary.
+
+            {combined_text}
+
+            Final summary:
+            """
+
+        final_summary = await asyncio.to_thread(
+            self.model.generate,
+            final_prompt,
+            max_tokens=300,
+            temp=0.3
+        )
+
+        return final_summary.strip()
 
 # instantiate model client (swap in real client)
-model_client = ModelClient(api_key=os.environ.get("MODEL_API_KEY"))
+model_client = ModelClient()
 
 # --- FastAPI app ---
 app = FastAPI(title="Lecture Summarizer API", version="1.0")

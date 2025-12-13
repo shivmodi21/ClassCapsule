@@ -3,32 +3,45 @@ from typing import List, Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import math
 import uuid
 import os
 import asyncio
 
-# --- Replace this with your actual model client (OpenAI, etc.) ---
+# --- Replace this with actual model client (OpenAI, etc.) ---
 # Example minimal interface used below:
 class ModelClient:
     """
     Implement `async def summarize_chunks(self, prompts: List[str]) -> List[str]`
-    to call your preferred LLM or summarization model. The example below uses a
+    to call preferred LLM or summarization model. The example below uses a
     hypothetical async call; replace with real SDK calls (openai.ChatCompletion.acreate, etc.).
     """
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key
 
     async def summarize_chunks(self, prompts: List[str]) -> List[str]:
-        # Placeholder: simply echo or do naive shortening.
-        # Replace this with real model calls and prompt engineering.
         await asyncio.sleep(0.1 * len(prompts))
-        return [f"SUMMARY_OF_CHUNK_{i+1}: " + (p[:200] + "..." if len(p) > 200 else p) for i, p in enumerate(prompts)]
+        summaries = []
+
+        for p in prompts:
+            if "=== LECTURE TEXT START ===" in p:
+                text = p.split("=== LECTURE TEXT START ===")[1]
+                text = text.split("=== LECTURE TEXT END ===")[0].strip()
+            else:
+                text = p
+
+            # very simple fake summary: first 2 sentences
+            sentences = text.split(".")
+            summary = ". ".join(sentences[:2]).strip()
+
+            summaries.append(f"- {summary}.")
+
+        return summaries
+
 
     async def consolidate_summaries(self, partials: List[str], query: str) -> str:
         # Replace with a call that instructs the model to combine partial summaries
         await asyncio.sleep(0.1)
-        return "CONSOLIDATED: " + " ".join(p[:300] for p in partials)
+        return "\n".join(partials)
 
 # instantiate model client (swap in real client)
 model_client = ModelClient(api_key=os.environ.get("MODEL_API_KEY"))
@@ -139,7 +152,16 @@ def build_prompt_for_chunk(chunk: SummarizeChunk, options: SummaryOptions, idx: 
         header += " Also list any Q&A pairs found in this chunk."
     if options.extract_actions:
         header += " Also extract action items as short lines."
-    prompt = f"{header}\n\nExcerpt:\n{chunk.text}\n\nOutput:"
+    prompt = f"""
+    {header}
+
+    === LECTURE TEXT START ===
+    {chunk.text}
+    === LECTURE TEXT END ===
+
+    Output:
+    """
+
     return prompt
 
 # --- Main summarization endpoint ---

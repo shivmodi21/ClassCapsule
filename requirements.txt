@@ -1,10 +1,5 @@
-numpy
-pandas
-scipy
-matplotlib
-seaborn
-plotly
-scikit-learn
-tensorflow
-tensorboard
-keras
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+httpx

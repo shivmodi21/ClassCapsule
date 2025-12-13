@@ -1,2 +1,3 @@
-# Machine Learning
-Practice for ML and DL
+# Class Capsule
+
+Student Assistant

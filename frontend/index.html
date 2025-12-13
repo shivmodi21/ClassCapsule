@@ -11,7 +11,19 @@
   </style>
 </head>
 <body>
-  <h1>Lecture Recording (Transcript)</h1>
+  <h1>Lecture Summarizer</h1>
+
+  <div style="margin-top:1rem;">
+    <label for="lectureName"><b>Lecture Name:</b></label><br>
+    <input
+      type="text"
+      id="lectureName"
+      placeholder="e.g. Probability_Bayes_Theorem"
+      style="width:100%; padding:0.6rem; margin-top:0.3rem;"
+    />
+    <div class="status" id="lectureError" style="color:red;"></div>
+  </div>
+
 
   <!-- Language Selector -->
   <label for="langSelect"><b>Language:</b></label>
@@ -29,12 +41,18 @@
   <div style="margin-top: 1rem;">
     <button id="startBtn">Start</button>
     <button id="stopBtn" disabled>Stop</button>
-    <button id="downloadBtn" disabled>Download .txt</button>
+    <button id="downloadTranscriptBtn" disabled>Download Transcript</button>
+    <button id="summarizeBtn" disabled>Summarize</button>
+    <button id="downloadSummaryBtn" disabled>Download Summary</button>
   </div>
 
   <div class="status" id="status">Status: idle</div>
 
   <div id="transcript" contenteditable="true"></div>
+
+  <h2>Summary</h2>
+  <div id="summary" style="white-space: pre-wrap; border:1px solid #ddd; padding:1rem;"></div>
+
 
   <script>
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -42,10 +60,15 @@
 
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
+    const downloadTranscriptBtn = document.getElementById('downloadTranscriptBtn');
+    const downloadSummaryBtn = document.getElementById('downloadSummaryBtn');
     const statusEl = document.getElementById('status');
     const transcriptEl = document.getElementById('transcript');
     const langSelect = document.getElementById('langSelect');
+    const lectureNameInput = document.getElementById("lectureName");
+    const lectureError = document.getElementById("lectureError");
+
+    downloadSummaryBtn.disabled = true;
 
     if (!support) {
       statusEl.innerText = "Web Speech API not supported. Use Chrome/Edge.";
@@ -58,6 +81,12 @@
         recog.lang = langSelect.value;
         console.log("Language set:", recog.lang);
       }
+    }
+
+    function isValidFilename(name) {
+      // Windows + cross-platform safe
+      const invalidChars = /[<>:"/\\|?*\x00-\x1F]/;
+      return !invalidChars.test(name);
     }
 
     if (recog) {
@@ -83,7 +112,7 @@
           else interim += r[0].transcript;
         }
         transcriptEl.innerText = (final + (interim ? "\n\n[partial]\n" + interim : "")).trim();
-        downloadBtn.disabled = transcriptEl.innerText.trim().length === 0;
+        downloadTranscriptBtn.disabled = transcriptEl.innerText.trim().length === 0;
       };
     }
 
@@ -104,17 +133,108 @@
       recog.stop();
     };
 
-    downloadBtn.onclick = () => {
+    downloadTranscriptBtn.onclick = () => {
+      const lectureName = lectureNameInput.value.trim();
+      if (!lectureName || !isValidFilename(lectureName)) return;
+
       const text = transcriptEl.innerText.trim();
       if (!text) return;
+
       const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = "transcript.txt";
+      a.href = URL.createObjectURL(blob);
+      a.download = `${lectureName}_transcript.txt`;
       a.click();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(a.href);
     };
+
+    downloadSummaryBtn.onclick = () => {
+      const lectureName = lectureNameInput.value.trim();
+      if (!lectureName || !isValidFilename(lectureName)) return;
+
+      const summary = summaryEl.innerText.trim();
+      if (!summary) return;
+
+      const blob = new Blob([summary], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${lectureName}_summary.txt`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+
+
+
+    const summarizeBtn = document.getElementById("summarizeBtn");
+    const summaryEl = document.getElementById("summary");
+
+    function updateButtons() {
+      const hasText = transcriptEl.innerText.trim().length > 0;
+      downloadTranscriptBtn.disabled = !hasText;
+      summarizeBtn.disabled = !hasText;
+    }
+
+    // modify your onresult handler slightly
+    // after transcriptEl.innerText = ...
+    updateButtons();
+
+    summarizeBtn.onclick = async () => {
+      lectureError.innerText = "";
+
+      const lectureName = lectureNameInput.value.trim();
+      if (!lectureName) {
+        lectureError.innerText = "Lecture name is required.";
+        return;
+      }
+
+      if (!isValidFilename(lectureName)) {
+        lectureError.innerText =
+          "Lecture name contains invalid characters for a file name.";
+        return;
+      }
+
+      const transcript = transcriptEl.innerText.trim();
+      if (!transcript) {
+        lectureError.innerText = "Transcript is empty.";
+        return;
+      }
+
+      summaryEl.innerText = "Summarizing...";
+
+      try {
+        const res = await fetch("http://127.0.0.1:8000/v1/summarize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            transcript: transcript,
+            options: {
+              length: "short",
+              format: "bullets",
+              include_timestamps: false,
+              extract_qna: false,
+              extract_actions: false,
+              speakers_as_sections: false
+            }
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error("Backend error");
+        }
+
+        const data = await res.json();
+        summaryEl.innerText = data.summary_text;
+        downloadSummaryBtn.disabled = false;
+
+      } catch (err) {
+        summaryEl.innerText = "Error connecting to backend.";
+        console.error(err);
+      }
+    };
+
+
   </script>
 </body>
 </html>

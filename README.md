@@ -1,14 +1,14 @@
 # 🎓 ClassCapsule – Student Assistant
 
-ClassCapsule is a lightweight **Student Assistant** designed to help summarize lecture transcripts and assist students during learning.  
-It uses a **FastAPI backend** and a simple **HTML frontend**, making it easy to prototype and extend.
+ClassCapsule is a lightweight **Student Assistant** designed to help summarize lecture transcripts and assist students during their learning.  
+It uses a **FastAPI backend** and a simple **HTML/CSS/JS frontend**, making it easy to prototype and extend.
 
 ---
 
 ## 🚀 Features
 - Lecture transcript summarization
 - Simple backend API using FastAPI
-- Lightweight frontend (HTML + JS)
+- Lightweight frontend (HTML + CSS + JS)
 - Easy local setup for development and testing
 
 ---
@@ -22,8 +22,7 @@ It uses a **FastAPI backend** and a simple **HTML frontend**, making it easy to 
 
 ## 📦 Installation & Setup
 
-## Prerequisites
-
+### Prerequisites
 - Python 3.10+
 - Git
 - FFmpeg (required for audio transcription)
@@ -57,13 +56,14 @@ source .venv/bin/activate
 ### 3️⃣ Install Dependencies
 
 ```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
 #### Install FFmpeg (Required for Whisper)
 
 #### Windows
-1. Download FFmpeg from https://www.gyan.dev/ffmpeg/builds/
+1. Download FFmpeg (ffmpeg-release-essentials.zip) from https://www.gyan.dev/ffmpeg/builds/
 2. Extract to `C:\ffmpeg`
 3. Add `C:\ffmpeg\bin` to PATH
 4. Restart terminal
@@ -109,8 +109,11 @@ ClassCapsule/
 │   └── app.py          # FastAPI backend
 │
 ├── frontend/
-│   └── index.html      # Frontend UI
+│   └── index.html
+│   └── style.css
+│   └── script.js
 │
+├── .gitignore          # Cache and Data to be ignored by git
 ├── requirements.txt    # Python dependencies
 ├── README.md
 └── .venv/              # Virtual environment (ignored by git)

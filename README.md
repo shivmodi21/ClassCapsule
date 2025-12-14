@@ -60,10 +60,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
----
-## Install FFmpeg (Required for Whisper)
+#### Install FFmpeg (Required for Whisper)
 
-### Windows
+#### Windows
 1. Download FFmpeg from https://www.gyan.dev/ffmpeg/builds/
 2. Extract to `C:\ffmpeg`
 3. Add `C:\ffmpeg\bin` to PATH
@@ -72,7 +71,7 @@ pip install -r requirements.txt
 Verify:
 ```bash
 ffmpeg -version
-
+```
 ---
 
 ## ▶️ Running the Application

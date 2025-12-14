@@ -8,9 +8,15 @@ __pycache__/
 # Virtual environment
 .venv/
 
-# VS Code settings (optional)
+# VS Code settings
 .vscode/
 
 # System files
 .DS_Store
 Thumbs.db
+
+# Cache and data directories
+.cache/
+data/
+*.gguf
+

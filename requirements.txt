@@ -2,4 +2,14 @@ fastapi
 uvicorn[standard]
 pydantic
 python-dotenv
+python-multipart
 httpx
+
+# Local LLM
+gpt4all
+
+# Whisper + ML stack
+openai-whisper
+torch
+torchvision
+torchaudio

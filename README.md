@@ -22,6 +22,12 @@ It uses a **FastAPI backend** and a simple **HTML frontend**, making it easy to 
 
 ## 📦 Installation & Setup
 
+## Prerequisites
+
+- Python 3.10+
+- Git
+- FFmpeg (required for audio transcription)
+
 ### 1️⃣ Clone the Repository
 ```bash
 git clone https://github.com/shivmodi21/ClassCapsule.git
@@ -53,6 +59,19 @@ source .venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
+
+---
+## Install FFmpeg (Required for Whisper)
+
+### Windows
+1. Download FFmpeg from https://www.gyan.dev/ffmpeg/builds/
+2. Extract to `C:\ffmpeg`
+3. Add `C:\ffmpeg\bin` to PATH
+4. Restart terminal
+
+Verify:
+```bash
+ffmpeg -version
 
 ---
 

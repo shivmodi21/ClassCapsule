@@ -1,0 +1,221 @@
+/* =========================
+   CSS RESET & VARIABLES
+========================= */
+:root {
+  --primary: #2563eb;        /* blue */
+  --primary-dark: #1e40af;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --border: #e5e7eb;
+  --bg: #f9fafb;
+  --text: #111827;
+  --muted: #6b7280;
+  --card: #ffffff;
+  --radius: 10px;
+  --shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* =========================
+   BASE STYLES
+========================= */
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 780px;
+  margin: 2rem auto;
+  padding: 1.25rem;
+  line-height: 1.6;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+h2 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+h3 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+/* =========================
+   INPUTS & SELECTS
+========================= */
+label {
+  font-weight: 600;
+}
+
+input[type="text"],
+input[type="file"],
+select {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.95rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+input[type="text"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* =========================
+   AUDIO UPLOAD ROW
+========================= */
+.audio-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+#audioFileInput {
+  flex: 1;                /* takes remaining space */
+}
+
+#uploadAudioBtn {
+  white-space: nowrap;
+}
+
+
+/* =========================
+   BUTTONS
+========================= */
+button {
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--radius);
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow);
+}
+
+button:hover:not(:disabled) {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Secondary / utility buttons */
+#clearBtn {
+  background: #374151;
+}
+
+#clearBtn:hover:not(:disabled) {
+  background: #111827;
+}
+
+/* =========================
+   STATUS MESSAGES
+========================= */
+.status {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+#lectureError {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+#audioStatus {
+  color: var(--primary);
+}
+
+#detectedLanguage {
+  color: var(--success);
+}
+
+#status {
+  margin-top: 1rem;
+  font-weight: 600;
+}
+
+/* =========================
+   TRANSCRIPT & SUMMARY
+========================= */
+#transcript,
+#summary {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-top: 1rem;
+  min-height: 160px;
+  white-space: pre-wrap;
+  box-shadow: var(--shadow);
+}
+
+#transcript {
+  outline: none;
+}
+
+#transcript:focus {
+  border-color: var(--primary);
+}
+
+/* =========================
+   SECTIONS & DIVIDERS
+========================= */
+hr {
+  border: none;
+  height: 1px;
+  background: var(--border);
+  margin: 2rem 0;
+}
+
+/* Button groups */
+button + button {
+  margin-left: 0.5rem;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 600px) {
+  body {
+    margin: 1rem auto;
+    padding: 1rem;
+  }
+
+  button {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  button + button {
+    margin-left: 0;
+  }
+}

@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
 
-    let inputMode = null; // "live" or "upload"
+    let isRecording = false;  // "live" or "upload"
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const support = !!Recognition;
 
@@ -34,8 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function applyLanguage() {
         if (recog) {
-        recog.lang = langSelect.value;
-        console.log("Language set:", recog.lang);
+            recog.lang = langSelect.value;
+            console.log("Language set:", recog.lang);
         }
     }
 
@@ -51,28 +51,8 @@ document.addEventListener("DOMContentLoaded", () => {
         summarizeBtn.disabled = !hasText;
     }
 
-    function enableLiveRecordingMode() {
-        inputMode = "live";
-
-        // disable audio upload
-        audioFileInput.disabled = true;
-        uploadAudioBtn.disabled = true;
-
-        audioStatus.innerText = "Audio upload disabled while recording.";
-    }
-
-    function enableAudioUploadMode() {
-        inputMode = "audio";
-
-        // disable live recording
-        startBtn.disabled = true;
-        stopBtn.disabled = true;
-
-        statusEl.innerText = "Live recording disabled while using audio upload.";
-    }
-
     function resetInputModes() {
-        inputMode = null;
+        isRecording = false;
 
         // enable everything
         audioFileInput.disabled = false;
@@ -110,39 +90,35 @@ document.addEventListener("DOMContentLoaded", () => {
         resetInputModes();
     }
 
-    transcriptEl.addEventListener("input", () => {
-        resetInputModes();
-        updateButtons();
-    });
-
-
     if (recog) {
         recog.continuous = true;
-        recog.interimResults = true;
+        recog.interimResults = false;
 
         applyLanguage(); // initial
 
         recog.onstart = () => { statusEl.innerText = 'Status: listening...'; };
         recog.onend = () => {
-        statusEl.innerText = 'Status: stopped';
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-
-        resetInputModes();
+            if (isRecording) {
+                setTimeout(() => {
+                try { recog.start(); } catch {}
+                }, 500);
+            } else {
+                statusEl.innerText = "Status: STOPPED";
+            }
         };
         recog.onerror = (e) => { statusEl.innerText = 'Error: ' + e.error; };
 
-        recog.onresult = (ev) => {
-        let final = '';
-        let interim = '';
-        for (let i = 0; i < ev.results.length; i++) {
-            const r = ev.results[i];
-            if (r.isFinal) final += r[0].transcript;
-            else interim += r[0].transcript;
-        }
-        transcriptEl.innerText = (final + (interim ? "\n\n[partial]\n" + interim : "")).trim();
-        updateButtons();
-        downloadTranscriptBtn.disabled = transcriptEl.innerText.trim().length === 0;
+        recog.onresult = (event) => {
+            let text = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                    text += event.results[i][0].transcript + " ";
+                }
+            }
+            if (text.trim()) {
+                transcriptEl.innerText += text;
+                updateButtons();
+            }
         };
     }
 
@@ -161,38 +137,54 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     startBtn.onclick = () => {
-        enableLiveRecordingMode();
+        isRecording = true;
 
         startBtn.disabled = true;
         stopBtn.disabled = false;
+
+        audioFileInput.disabled = true;
+        uploadAudioBtn.disabled = true;
+        audioStatus.innerText = "Audio upload disabled while recording.";
+
         applyLanguage();
         try { recog.start(); } catch {}
     };
 
     stopBtn.onclick = () => {
-        recog.stop();
+        isRecording = false;
+        try { recog.stop(); } catch {}
+
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+
+        audioFileInput.disabled = false;
+        uploadAudioBtn.disabled = false;
     };
 
     clearBtn.onclick = () => {
         if (confirm("Clear current lecture and start a new one?")) {
-        resetLecture();
-        window.scrollTo({ top: 0, behavior: "smooth" });
+            resetLecture();
+            window.scrollTo({ top: 0, behavior: "smooth" });
         }
     };
 
     uploadAudioBtn.onclick = async () => {
-        if (inputMode === "live") {
-        audioStatus.innerText = "Stop live recording before uploading audio.";
-        return;
+        if (isRecording) {
+            audioStatus.innerText = "Stop live recording before uploading audio.";
+            return;
         }
         const file = audioFileInput.files[0];
         if (!file) {
-        audioStatus.innerText = "Please select an audio file.";
-        return;
+            audioStatus.innerText = "Please select an audio file.";
+            return;
         }
 
-        enableAudioUploadMode();
-        audioStatus.innerText = "Uploading & transcribing… this may take 1–2 minutes.";
+        // disable live recording
+        startBtn.disabled = true;
+        stopBtn.disabled = true;
+
+        statusEl.innerText = "Live recording disabled while using audio upload.";
+        audioStatus.innerText = "Uploading & transcribing… this may take 1-2 minutes.";
 
         const formData = new FormData();
         formData.append("file", file);
@@ -203,7 +195,11 @@ document.addEventListener("DOMContentLoaded", () => {
             body: formData
         });
 
-        if (!res.ok) throw new Error("Transcription failed");
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.detail);
+            return;
+        }
 
         const data = await res.json();
 
@@ -217,13 +213,9 @@ document.addEventListener("DOMContentLoaded", () => {
         resetInputModes();
         updateButtons();
 
-        // enable transcript-related buttons
-        downloadTranscriptBtn.disabled = false;
-        summarizeBtn.disabled = false;
-
         } catch (err) {
-        console.error(err);
-        audioStatus.innerText = "Error during transcription.";
+            console.error(err);
+            audioStatus.innerText = "Error during transcription.";
         }
     };
 
@@ -337,8 +329,28 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             if (!res.ok) {
-                throw new Error("Backend error");
+                console.error("Summarization failed:", res);
+
+                let err;
+                try {
+                    err = await res.json();
+                } catch (jsonErr) {
+                    // THIS is what was happening
+                    summaryEl.innerText =
+                        `Server error (${res.status}). Please try again later.`;
+                    summarizeBtn.disabled = false;
+                    return;
+                }
+
+                if (!err.detail?.instructions) {
+                    alert(err.detail?.message || "Server error");
+                    return;
+                }
+
+                alert(err.detail.message + "\n\n" + err.detail.instructions.join("\n"));
+                return;
             }
+
 
             const data = await res.json();
             summaryEl.innerText = data.summary_text;

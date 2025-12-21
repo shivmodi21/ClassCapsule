@@ -8,26 +8,66 @@ import tempfile
 import os
 import uuid
 import asyncio
-from gpt4all import GPT4All
+import requests
+
+class ModelService():
+
+    def check_ollama_running(self, url="http://localhost:11434"):
+        try:
+            r = requests.get(url, timeout=2)
+            return r.status_code == 200
+        except requests.exceptions.RequestException:
+            return False
+    
+    def check_model_available(self, model="mistral"):
+        try:
+            r = requests.get("http://localhost:11434/api/tags", timeout=5)
+            r.raise_for_status()
+
+            models = [m["name"] for m in r.json().get("models", [])]
+
+            # match mistral, mistral:latest, mistral:7b, etc.
+            return any(m.startswith(model + ":") or m == model for m in models)
+
+        except requests.exceptions.RequestException:
+            return False
 
 class ModelClient:
     def __init__(self):
         # model will be downloaded automatically on first run
-        self.model = GPT4All(
-            model_name="mistral-7b-instruct-v0.1.Q4_0.gguf",
-            allow_download=True
-        )
+        # self.model = GPT4All(
+        #     model_name="mistral-7b-instruct-v0.1.Q4_0.gguf",
+        #     allow_download=True
+        # )
+        self.url = "http://localhost:11434/api/generate"
+        self.model = "mistral"
 
+    def _generate(self, prompt: str, max_tokens: int = 200, temperature: float = 0.3) -> str:
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "num_predict": max_tokens,
+                "temperature": temperature
+            }
+        }
+        response = requests.post(self.url, json=payload, timeout=300)
+        response.raise_for_status()
+        data = response.json()
+
+        return data.get("response", "").strip()
+    
     async def summarize_chunks(self, prompts: List[str]) -> List[str]:
         summaries = []
 
         for prompt in prompts:
             # run blocking model call in thread (important for FastAPI)
             summary = await asyncio.to_thread(
-                self.model.generate,
+                self._generate,
                 prompt,
                 max_tokens=200,
-                temp=0.3
+                temperature=0.3
             )
             summaries.append(summary.strip())
 
@@ -46,20 +86,21 @@ class ModelClient:
             """
 
         final_summary = await asyncio.to_thread(
-            self.model.generate,
+            self._generate,
             final_prompt,
             max_tokens=300,
-            temp=0.3
+            temperature=0.3
         )
 
         return final_summary.strip()
 
 # instantiate model client and whisper model globally
+model_service = ModelService()
 model_client = None
 whisper_model = None
 
 # --- FastAPI app ---
-app = FastAPI(title="Lecture Summarizer API", version="1.0")
+app = FastAPI(title="ClassCapsule API", version="1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -187,9 +228,43 @@ def build_prompt_for_chunk(chunk: SummarizeChunk, options: SummaryOptions, idx: 
 @app.post("/v1/summarize", response_model=SummarizeResponse)
 async def summarize(req: SummarizeRequest):
     global model_client
+    print("Received summarize request")
+    print(f"Transcript length: {len(req.transcript)} characters")
     
     if not req.transcript or len(req.transcript.strip()) == 0:
-        raise HTTPException(status_code=400, detail="Transcript is empty")
+        raise HTTPException(status_code=400,
+                            detail={
+                                "error": "INVALID_REQUEST",
+                                "message": "Transcript is empty",
+                                "instructions": []
+                            })
+
+    # ensure model service is ready
+    if not model_service.check_ollama_running():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "LLM_NOT_READY",
+                "message": "Ollama is not running",
+                "instructions": [
+                    "Install Ollama: https://ollama.com/download",
+                    "Run: ollama serve",
+                    "Run: ollama pull mistral"
+                ]
+            }
+        )
+    
+    if not model_service.check_model_available("mistral"):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "LLM_NOT_READY",
+                "message": "Mistral model not found",
+                "instructions": [
+                    "Run: ollama pull mistral"
+                ]
+            }
+        )
     
     if model_client is None:
         model_client = ModelClient()
@@ -202,11 +277,19 @@ async def summarize(req: SummarizeRequest):
     # build prompts for each chunk
     prompts = [build_prompt_for_chunk(ch, req.options, i + 1, len(chunks)) for i, ch in enumerate(chunks)]
 
+    print(f"Created {len(chunks)} chunks for summarization")
+
     # call model to summarize each chunk (replace with real model calls)
     try:
         partial_summaries = await model_client.summarize_chunks(prompts)
+        print(f"Obtained {len(partial_summaries)} partial summaries")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Model error: {e}")
+        raise HTTPException(status_code=500,
+                            detail={
+                                "error": "MODEL_ERROR",
+                                "message": f"Model Error: {e}",
+                                "instructions": []
+                            })
 
     # consolidate partial summaries into single final summary
     consolidate_query = (
@@ -302,7 +385,12 @@ async def transcribe_audio(file: UploadFile = File(...)):
 # --- Health and example endpoints ---
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "ollama_running": model_service.check_ollama_running(),
+        "model_available": model_service.check_model_available("mistral"),
+        "model": "mistral"
+    }
 
 @app.get("/example_request")
 def example_request():

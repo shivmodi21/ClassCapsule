@@ -74,6 +74,66 @@ ffmpeg -version
 ```
 ---
 
+#### Install Ollama
+
+Download and install:
+
+👉 [https://ollama.com/download](https://ollama.com/download)
+
+After installation verify:
+
+```bash
+ollama --version
+```
+
+---
+
+#### 🤖 Install AI Models
+
+ClassCapsule uses **local AI models** via Ollama.
+
+##### Recommended (Low RAM)
+
+For laptops with **4–8GB RAM**:
+
+```bash
+ollama pull phi3:mini
+```
+
+Why?
+
+* Faster
+* Lightweight
+* Works on most laptops
+
+---
+
+##### Higher Quality (Needs More RAM)
+
+For systems with **8GB+ RAM available**:
+
+```bash
+ollama pull mistral
+```
+
+⚠️ Mistral requires around **4.5GB+ free RAM**
+
+If you get:
+
+```txt
+model requires more system memory
+```
+
+Use:
+
+```bash
+ollama pull phi3:mini
+```
+
+instead.
+
+---
+
 ## ▶️ Running the Application
 
 ### Start Backend Server

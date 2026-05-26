@@ -23,6 +23,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const clearBtn = document.getElementById("clearBtn");
 
+    const modelSelect = document.getElementById("modelSelect");
+    const modelMemoryInfo = document.getElementById("modelMemoryInfo");
+    let selectedModel = "mistral:latest";
 
     downloadSummaryBtn.disabled = true;
 
@@ -49,6 +52,73 @@ document.addEventListener("DOMContentLoaded", () => {
         const hasText = transcriptEl.innerText.trim().length > 0;
         downloadTranscriptBtn.disabled = !hasText;
         summarizeBtn.disabled = !hasText;
+    }
+
+    async function loadModels() {
+        try {
+
+            const res = await fetch("http://127.0.0.1:8000/v1/models");
+
+            if (!res.ok) {
+                throw new Error("Failed to fetch models");
+            }
+
+            const data = await res.json();
+
+            modelSelect.innerHTML = "";
+
+            data.models.forEach(
+                (model, index) => {
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+                option.value = model.id;
+
+                option.textContent = model.name;
+
+                option.dataset.memory = model.memory_required_gb;
+
+                modelSelect.appendChild(option);
+
+                // select first model by default
+                if (index === 0) {
+
+                    selectedModel = model.id;
+
+                    modelMemoryInfo.innerText =
+                        `Required memory: ${model.memory_required_gb} GB`;
+                }
+            });
+
+            modelSelect.addEventListener(
+                "change",
+                () => {
+
+                const selectedOption =
+                    modelSelect.options[
+                        modelSelect.selectedIndex
+                    ];
+
+                selectedModel =
+                    selectedOption.value;
+
+                modelMemoryInfo.innerText =
+                    `Required memory: ${selectedOption.dataset.memory} GB`;
+            });
+
+        } catch (err) {
+
+            console.error(err);
+
+            modelSelect.innerHTML =
+                "<option>Error loading models</option>";
+
+            modelMemoryInfo.innerText =
+                "Could not connect to backend";
+        }
     }
 
     function resetInputModes() {
@@ -316,15 +386,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                transcript: transcript,
-                options: {
-                    length: "short",
-                    format: "bullets",
-                    include_timestamps: false,
-                    extract_qna: false,
-                    extract_actions: false,
-                    speakers_as_sections: false
-                }
+                    transcript: transcript,
+                    model: selectedModel,
+                    options: {
+                        length: "short",
+                        format: "bullets",
+                        include_timestamps: false,
+                        extract_qna: false,
+                        extract_actions: false,
+                        speakers_as_sections: false
+                    }
                 })
             });
 
@@ -368,6 +439,12 @@ document.addEventListener("DOMContentLoaded", () => {
             // re-enable summarize so user can retry
             summarizeBtn.disabled = false;
         }
+        finally {
+            // ensure summarize button is re-enabled in case of any error
+            summarizeBtn.disabled = false;
+        }
     };
+
+    loadModels();
 
 });

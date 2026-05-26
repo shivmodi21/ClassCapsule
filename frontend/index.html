@@ -57,6 +57,20 @@
   <div class="status" id="status">Status: IDLE</div>
 
   <div id="transcript" contenteditable="true"></div>
+
+  <div class="model-selector">
+    <label for="modelSelect">
+      <b>AI Model:</b>
+    </label>
+
+    <select id="modelSelect">
+      <option>Loading models...</option>
+    </select>
+
+    <div id="modelMemoryInfo">
+      Required memory: --
+    </div>
+  </div>
   
   <div style="margin-top: 1rem;">
     <button id="downloadTranscriptBtn" disabled>Download Transcript</button>

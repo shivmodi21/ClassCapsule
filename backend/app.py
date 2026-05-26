@@ -31,16 +31,38 @@ class ModelService():
 
         except requests.exceptions.RequestException:
             return False
+        
+    def get_available_models(self):
+        try:
+            r = requests.get(
+                "http://localhost:11434/api/tags",
+                timeout=5
+            )
+            r.raise_for_status()
+
+            models = r.json().get("models", [])
+
+            formatted_models = []
+
+            for model in models:
+                size_bytes = model.get("size", 0)
+                size_gb = round(size_bytes / (1024**3), 2)
+
+                formatted_models.append({
+                    "id": model.get("name"),
+                    "name": model.get("name"),
+                    "memory_required_gb": size_gb
+                })
+
+            return formatted_models
+
+        except requests.exceptions.RequestException:
+            return []
 
 class ModelClient:
-    def __init__(self):
-        # model will be downloaded automatically on first run
-        # self.model = GPT4All(
-        #     model_name="mistral-7b-instruct-v0.1.Q4_0.gguf",
-        #     allow_download=True
-        # )
+    def __init__(self, model="mistral:latest"):
         self.url = "http://localhost:11434/api/generate"
-        self.model = "mistral"
+        self.model = model
 
     def _generate(self, prompt: str, max_tokens: int = 200, temperature: float = 0.3) -> str:
         payload = {
@@ -52,26 +74,51 @@ class ModelClient:
                 "temperature": temperature
             }
         }
-        response = requests.post(self.url, json=payload, timeout=300)
-        response.raise_for_status()
-        data = response.json()
+        try:
+            response = requests.post(self.url, json=payload, timeout=300)
+            response.raise_for_status()
+            data = response.json()
 
-        return data.get("response", "").strip()
+            if response.status_code != 200:
+                raise Exception(
+                    f"Ollama Error {response.status_code}: "
+                    f"{response.text}"
+                )
+
+            data = response.json()
+            return data.get("response", "").strip()
+
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Failed to connect to Ollama: {e}")
     
     async def summarize_chunks(self, prompts: List[str]) -> List[str]:
-        summaries = []
+        semaphore = asyncio.Semaphore(2)
 
-        for prompt in prompts:
-            # run blocking model call in thread (important for FastAPI)
-            summary = await asyncio.to_thread(
-                self._generate,
-                prompt,
-                max_tokens=200,
-                temperature=0.3
-            )
-            summaries.append(summary.strip())
+        async def generate_summary(prompt):
+            async with semaphore:
+                return await asyncio.to_thread(
+                    self._generate,
+                    prompt,
+                    max_tokens=200,
+                    temperature=0.3
+                )
 
-        return summaries
+        tasks = [
+            generate_summary(prompt)
+            for prompt in prompts
+        ]
+
+        summaries = await asyncio.gather(*tasks, return_exceptions=True)
+
+        cleaned = []
+
+        for s in summaries:
+            if isinstance(s, Exception):
+                cleaned.append("Summary generation failed.")
+            else:
+                cleaned.append(s.strip())
+
+        return cleaned
 
     async def consolidate_summaries(self, partials: List[str], query: str) -> str:
         combined_text = "\n".join(partials)
@@ -98,6 +145,7 @@ class ModelClient:
 model_service = ModelService()
 model_client = None
 whisper_model = None
+loaded_model = None
 
 # --- FastAPI app ---
 app = FastAPI(title="ClassCapsule API", version="1.0")
@@ -123,6 +171,7 @@ class SummarizeRequest(BaseModel):
     transcript: str = Field(..., description="Full lecture transcript text. Prefer format: [00:05:12] Speaker: ...")
     options: SummaryOptions = Field(default_factory=SummaryOptions)
     # optional metadata
+    model: Optional[str] = "mistral:latest"
     lecture_title: Optional[str] = None
     max_tokens_for_model: Optional[int] = 3000
 
@@ -228,6 +277,8 @@ def build_prompt_for_chunk(chunk: SummarizeChunk, options: SummaryOptions, idx: 
 @app.post("/v1/summarize", response_model=SummarizeResponse)
 async def summarize(req: SummarizeRequest):
     global model_client
+    global loaded_model
+
     print("Received summarize request")
     print(f"Transcript length: {len(req.transcript)} characters")
     
@@ -254,20 +305,31 @@ async def summarize(req: SummarizeRequest):
             }
         )
     
-    if not model_service.check_model_available("mistral"):
+    selected_model = req.model or "mistral:latest"
+    print("Using model:", selected_model)
+
+    base_model_name = (selected_model.split(":")[0])
+
+    if not model_service.check_model_available(base_model_name):
         raise HTTPException(
             status_code=503,
             detail={
                 "error": "LLM_NOT_READY",
-                "message": "Mistral model not found",
+                "message":
+                    f"{selected_model} not found",
                 "instructions": [
-                    "Run: ollama pull mistral"
+                    f"Run: ollama pull {base_model_name}"
                 ]
             }
         )
-    
-    if model_client is None:
-        model_client = ModelClient()
+
+    # only switch if model changed
+    if (model_client is None or loaded_model != selected_model):
+        print(f"Loading model: {selected_model}")
+        model_client = ModelClient(model=selected_model)
+        loaded_model = selected_model
+    else:
+        print(f"Using cached model: {selected_model}")
 
     # chunk transcript
     # choose chunk size based on expected model context; adjust as desired
@@ -372,7 +434,8 @@ async def transcribe_audio(file: UploadFile = File(...)):
         )
 
     finally:
-        os.remove(tmp_path)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
     if not transcript_text:
         raise HTTPException(status_code=500, detail="Transcription failed")
@@ -380,6 +443,21 @@ async def transcribe_audio(file: UploadFile = File(...)):
     return {
         "transcript": transcript_text,
         "language": detected_language
+    }
+
+# --- Endpoint to list available models in Ollama ---
+@app.get("/v1/models")
+async def get_models():
+    if not model_service.check_ollama_running():
+        raise HTTPException(
+            status_code=503,
+            detail="Ollama is not running"
+        )
+
+    models = model_service.get_available_models()
+
+    return {
+        "models": models
     }
 
 # --- Health and example endpoints ---

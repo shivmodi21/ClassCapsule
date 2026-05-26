@@ -186,6 +186,37 @@ button:disabled {
   border-color: var(--primary);
 }
 
+.model-selector {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+.model-selector label {
+    display: block;
+    margin-bottom: 0.4rem;
+}
+
+#modelSelect {
+    width: 100%;
+    padding: 0.7rem;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+    background: white;
+    cursor: pointer;
+}
+
+#modelSelect:focus {
+    outline: none;
+    border-color: #666;
+}
+
+#modelMemoryInfo {
+    margin-top: 0.4rem;
+    font-size: 0.9rem;
+    color: #666;
+}
+
 /* =========================
    SECTIONS & DIVIDERS
 ========================= */

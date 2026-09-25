@@ -1,27 +1,29 @@
 # filename: app.py
 from typing import List, Optional, Literal, Dict, Any
 from pydantic import BaseModel, Field
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import whisper
 import tempfile
 import os
+import re
 import uuid
 import asyncio
-import requests
+import httpx
 
 class ModelService():
 
     def check_ollama_running(self, url="http://localhost:11434"):
         try:
-            r = requests.get(url, timeout=2)
+            r = httpx.get(url, timeout=2)
             return r.status_code == 200
-        except requests.exceptions.RequestException:
+        except httpx.HTTPError:
             return False
     
     def check_model_available(self, model="mistral"):
         try:
-            r = requests.get("http://localhost:11434/api/tags", timeout=5)
+            r = httpx.get("http://localhost:11434/api/tags", timeout=5)
             r.raise_for_status()
 
             models = [m["name"] for m in r.json().get("models", [])]
@@ -29,12 +31,12 @@ class ModelService():
             # match mistral, mistral:latest, mistral:7b, etc.
             return any(m.startswith(model + ":") or m == model for m in models)
 
-        except requests.exceptions.RequestException:
+        except httpx.HTTPError:
             return False
         
     def get_available_models(self):
         try:
-            r = requests.get(
+            r = httpx.get(
                 "http://localhost:11434/api/tags",
                 timeout=5
             )
@@ -56,7 +58,7 @@ class ModelService():
 
             return formatted_models
 
-        except requests.exceptions.RequestException:
+        except httpx.HTTPError:
             return []
 
 class ModelClient:
@@ -75,20 +77,12 @@ class ModelClient:
             }
         }
         try:
-            response = requests.post(self.url, json=payload, timeout=300)
+            response = httpx.post(self.url, json=payload, timeout=300)
             response.raise_for_status()
-            data = response.json()
-
-            if response.status_code != 200:
-                raise Exception(
-                    f"Ollama Error {response.status_code}: "
-                    f"{response.text}"
-                )
-
             data = response.json()
             return data.get("response", "").strip()
 
-        except requests.exceptions.RequestException as e:
+        except httpx.HTTPError as e:
             raise Exception(f"Failed to connect to Ollama: {e}")
     
     async def summarize_chunks(self, prompts: List[str]) -> List[str]:
@@ -109,28 +103,22 @@ class ModelClient:
         ]
 
         summaries = await asyncio.gather(*tasks, return_exceptions=True)
+        failures = [item for item in summaries if isinstance(item, Exception)]
+        if failures:
+            raise failures[0]
 
-        cleaned = []
-
-        for s in summaries:
-            if isinstance(s, Exception):
-                cleaned.append("Summary generation failed.")
-            else:
-                cleaned.append(s.strip())
-
-        return cleaned
+        return [item.strip() for item in summaries]
 
     async def consolidate_summaries(self, partials: List[str], query: str) -> str:
-        combined_text = "\n".join(partials)
+        combined_text = "\n\n".join(partials)
 
-        final_prompt = f"""
-            You are an academic assistant.
-            Combine the following partial summaries into a clear, concise lecture summary.
-
-            {combined_text}
-
-            Final summary:
-            """
+        final_prompt = (
+            "You are an academic assistant.\n"
+            f"{query.strip()}\n\n"
+            "Partial summaries:\n"
+            f"{combined_text}\n\n"
+            "Final summary:\n"
+        )
 
         final_summary = await asyncio.to_thread(
             self._generate,
@@ -192,6 +180,12 @@ class SummarizeResponse(BaseModel):
     actions: Optional[List[str]] = None
 
 # --- Utility: chunk transcript into manageable pieces ---
+def _line_timestamp(line: str) -> Optional[str]:
+    if line.startswith("[") and "]" in line[:10]:
+        return line.split("]", 1)[0].lstrip("[")
+    return None
+
+
 def chunk_transcript(transcript: str, max_chars: int = 4000) -> List[SummarizeChunk]:
     """
     Simple character-based chunking that tries to preserve speaker/timestamps by splitting on line breaks.
@@ -220,27 +214,51 @@ def chunk_transcript(transcript: str, max_chars: int = 4000) -> List[SummarizeCh
         ln = line.strip()
         if not ln:
             continue
-        # attempt to detect timestamp like [00:03:21] at start of line
-        if start_time is None:
-            # a naive timestamp capture
-            if ln.startswith("[") and "]" in ln[:10]:
-                start_time = ln.split("]")[0].lstrip("[")
-        end_time = None
-        if ln.startswith("[") and "]" in ln[:10]:
-            end_time = ln.split("]")[0].lstrip("[")
 
-        # accumulate
-        if cur_len + len(ln) + 1 > max_chars:
+        # Split before applying this line so its timestamp stays with the new chunk.
+        if current and cur_len + len(ln) + 1 > max_chars:
             flush_chunk()
+
+        timestamp = _line_timestamp(ln)
+        if timestamp:
+            if start_time is None:
+                start_time = timestamp
+            end_time = timestamp
+
         current.append(ln)
         cur_len += len(ln) + 1
 
     flush_chunk()
     return chunks
 
+_WINDOWS_RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+
+
+def safe_filename_stem(name: str, fallback: str = "lecture", strip_extension: bool = False) -> str:
+    raw = (name or "").replace("\\", "/").split("/")[-1].strip()
+    if strip_extension:
+        raw = os.path.splitext(raw)[0]
+    raw = re.sub(r"\s+", "_", raw)
+    raw = re.sub(r"[^A-Za-z0-9._-]", "", raw).strip("._")
+    if not raw:
+        return fallback
+    if raw.upper() in _WINDOWS_RESERVED_NAMES:
+        raw = f"{raw}_file"
+    return raw[:80]
+
+
 def save_text_to_file(folder: str, filename: str, content: str):
+    if not filename or filename != os.path.basename(filename) or filename in {".", ".."}:
+        raise ValueError("Unsafe filename")
     os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, filename)
+    folder_real = os.path.realpath(folder)
+    path = os.path.realpath(os.path.join(folder_real, filename))
+    if os.path.commonpath([folder_real, path]) != folder_real:
+        raise ValueError("Unsafe filename")
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
@@ -364,8 +382,7 @@ async def summarize(req: SummarizeRequest):
         # fallback: naive concatenation
         final_summary = "\n\n".join(partial_summaries)
 
-    lecture_name = req.lecture_title or "lecture"
-    lecture_name = lecture_name.replace(" ", "_")
+    lecture_name = safe_filename_stem(req.lecture_title or "", "lecture")
 
     save_text_to_file(
         "data/summaries",
@@ -403,7 +420,10 @@ async def summarize(req: SummarizeRequest):
 
 
 @app.post("/v1/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)):
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    lecture_title: Optional[str] = Form(None),
+):
     global whisper_model
 
     if not file.filename:
@@ -420,25 +440,29 @@ async def transcribe_audio(file: UploadFile = File(...)):
         tmp_path = tmp.name
 
     try:
-        result = whisper_model.transcribe(tmp_path)
+        # FP16 is for CUDA. On CPU, Whisper only supports FP32.
+        use_fp16 = whisper_model.device.type == "cuda"
+        result = whisper_model.transcribe(tmp_path, fp16=use_fp16)
         transcript_text = result["text"].strip()
         detected_language = result.get("language")
-
-        safe_name = os.path.splitext(file.filename)[0]
-        safe_name = safe_name.replace(" ", "_")
-
-        save_text_to_file(
-            "data/transcripts",
-            f"{safe_name}_transcript.txt",
-            transcript_text
-        )
-
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
     if not transcript_text:
         raise HTTPException(status_code=500, detail="Transcription failed")
+
+    stem_source = (lecture_title or "").strip() or file.filename
+    safe_name = safe_filename_stem(
+        stem_source,
+        "lecture",
+        strip_extension=not (lecture_title or "").strip(),
+    )
+    save_text_to_file(
+        "data/transcripts",
+        f"{safe_name}_transcript.txt",
+        transcript_text
+    )
 
     return {
         "transcript": transcript_text,
@@ -484,3 +508,7 @@ def example_request():
         },
         "lecture_title": "Intro to Probability"
     }
+
+# Serve the website at http://127.0.0.1:8000/. API routes above stay in front of this.
+_frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")

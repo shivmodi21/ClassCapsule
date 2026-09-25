@@ -90,17 +90,35 @@ ollama --version
 
 #### 🤖 Install AI Models
 
-ClassCapsule uses **local AI models** via Ollama.
+ClassCapsule uses **local AI models** via Ollama. The app lists models that are already installed. It does not download them for you.
 
-##### Higher Quality (Needs More RAM)
+Keep the backend terminal running. Use a **second terminal** for Ollama.
 
-For systems with **8GB+ RAM available**:
+##### If the model dropdown shows an error
+
+Ollama is not running. In that second terminal, start it and leave it open:
 
 ```bash
-ollama pull mistral
+ollama serve
 ```
 
-⚠️ Mistral requires around **4.5GB+ free RAM**
+Then refresh http://127.0.0.1:8000, or click **Check for models** in the page.
+
+##### Choose a model and install it
+
+Pick one model and run its command in the second terminal. Then refresh the page.
+
+| Model | Command | Rough size |
+| --- | --- | --- |
+| Llama 3.2 3B | `ollama pull llama3.2` | about 2 GB |
+| Gemma 2 2B | `ollama pull gemma2:2b` | about 1.6 GB |
+| Qwen 2.5 3B | `ollama pull qwen2.5:3b` | about 2 GB |
+| Phi-3 mini | `ollama pull phi3` | about 2.2 GB |
+| Mistral 7B | `ollama pull mistral` | about 4.5 GB |
+
+Mistral needs about **4.5GB+ free RAM**. The smaller models are a better fit on CPU.
+
+You can install a different Ollama text model the same way. In the app, type that model name under the dropdown. The page shows the exact `ollama pull` command to run in the other terminal. After the download finishes, click **Check for models**.
 
 ---
 
@@ -112,21 +130,13 @@ ollama pull mistral
 python -m uvicorn backend.app:app --reload
 ```
 
-The backend will start at:
+The website and API start at:
 
 ```
 http://127.0.0.1:8000
 ```
 
----
-
-### Open Frontend
-
-Open the following file directly in your browser (**Chrome** or **Microsoft Edge**):
-
-```text
-frontend/index.html
-```
+Open that address in **Chrome** or **Microsoft Edge**. You do not need to open `frontend/index.html` separately.
 
 ---
 

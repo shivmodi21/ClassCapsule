@@ -217,6 +217,31 @@ button:disabled {
     color: #666;
 }
 
+#modelHelp {
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 0.92rem;
+}
+
+#modelHelp p {
+  margin: 0.4rem 0;
+}
+
+#modelHelp pre {
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--bg);
+  overflow-x: auto;
+}
+
+#reloadModelsBtn {
+  margin-top: 0.6rem;
+}
+
 /* =========================
    SECTIONS & DIVIDERS
 ========================= */

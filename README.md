@@ -180,3 +180,17 @@ Feel free to fork the repository and submit a pull request.
 
 This project is open-source and intended for educational purposes.
 
+---
+
+## Author
+
+**Shiv Modi**
+B Tech and M Tech - IIT Bombay
+
+```text
+GitHub: https://github.com/shivmodi21
+Portfolio: https://shivmodi21.github.io/
+LinkedIn: https://www.linkedin.com/in/shivmodi210/
+```
+
+

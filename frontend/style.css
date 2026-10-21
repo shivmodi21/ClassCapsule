@@ -331,6 +331,10 @@ button:disabled {
   width: 100%;
 }
 
+#clearBtn .clear-btn__label--compact {
+  display: none;
+}
+
 .button-row--stack {
   flex-direction: column;
 }
@@ -490,6 +494,59 @@ button:disabled {
 /* =========================
    LARGE SCREENS (desktop)
 ========================= */
+@media (min-width: 1100px) and (max-width: 1236px) {
+  .top-row {
+    grid-template-columns:
+      minmax(0, 0.9fr)
+      minmax(0, 0.72fr)
+      minmax(0, 0.95fr)
+      minmax(0, 1.63fr);
+  }
+
+  .button-row--live {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.45rem;
+    flex-direction: unset;
+  }
+
+  .button-row--live #startBtn {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .button-row--live #stopBtn {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .button-row--live #clearBtn {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.25;
+    min-height: 100%;
+  }
+
+  .button-row--live button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #clearBtn .clear-btn__label--full {
+    display: none;
+  }
+
+  #clearBtn .clear-btn__label--compact {
+    display: inline;
+  }
+}
+
 @media (min-width: 1101px) {
   .body-row {
     grid-template-columns:
@@ -497,20 +554,6 @@ button:disabled {
         (100% - 3 * var(--top-gap)) * var(--side-rail-fr) / var(--top-fr-total)
       )
       minmax(0, 1fr);
-  }
-
-  .button-row--live {
-    display: grid;
-    grid-template-columns: 2fr 2fr 6fr;
-    gap: 0.45rem;
-    flex-direction: unset;
-  }
-
-  .button-row--live button {
-    width: auto;
-    min-width: 0;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
   }
 
   .upload-row {
@@ -535,6 +578,22 @@ button:disabled {
     justify-content: center;
     text-align: center;
     line-height: 1.25;
+  }
+}
+
+@media (min-width: 1237px) {
+  .button-row--live {
+    display: grid;
+    grid-template-columns: 2fr 2fr 6fr;
+    gap: 0.45rem;
+    flex-direction: unset;
+  }
+
+  .button-row--live button {
+    width: auto;
+    min-width: 0;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
 }
 

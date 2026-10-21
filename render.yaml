@@ -9,7 +9,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.11
+        value: 3.10.11
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_CHAT_MODEL

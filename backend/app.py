@@ -1,142 +1,94 @@
 # filename: app.py
 from typing import List, Optional, Literal, Dict, Any
+from pathlib import Path
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import whisper
-import tempfile
+from groq import Groq
 import os
 import re
 import uuid
 import asyncio
-import httpx
+import logging
 
-class ModelService():
+logger = logging.getLogger(__name__)
 
-    def check_ollama_running(self, url="http://localhost:11434"):
-        try:
-            r = httpx.get(url, timeout=2)
-            return r.status_code == 200
-        except httpx.HTTPError:
-            return False
-    
-    def check_model_available(self, model="mistral"):
-        try:
-            r = httpx.get("http://localhost:11434/api/tags", timeout=5)
-            r.raise_for_status()
+# Hosted inference configuration. Set GROQ_API_KEY in Render's Environment tab.
+GROQ_CHAT_MODEL = os.getenv("GROQ_CHAT_MODEL", "openai/gpt-oss-20b")
+GROQ_STT_MODEL = os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+_groq_client = None
 
-            models = [m["name"] for m in r.json().get("models", [])]
 
-            # match mistral, mistral:latest, mistral:7b, etc.
-            return any(m.startswith(model + ":") or m == model for m in models)
+def get_groq_client() -> Groq:
+    """Return a lazily initialized Groq client, or a clear setup error."""
+    global _groq_client
+    if not GROQ_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "AI_PROVIDER_NOT_CONFIGURED",
+                "message": "The hosted AI provider is not configured.",
+                "instructions": ["Add GROQ_API_KEY in the Render service Environment settings."],
+            },
+        )
+    if _groq_client is None:
+        _groq_client = Groq(api_key=GROQ_API_KEY, timeout=300.0, max_retries=2)
+    return _groq_client
 
-        except httpx.HTTPError:
-            return False
-        
-    def get_available_models(self):
-        try:
-            r = httpx.get(
-                "http://localhost:11434/api/tags",
-                timeout=5
-            )
-            r.raise_for_status()
-
-            models = r.json().get("models", [])
-
-            formatted_models = []
-
-            for model in models:
-                size_bytes = model.get("size", 0)
-                size_gb = round(size_bytes / (1024**3), 2)
-
-                formatted_models.append({
-                    "id": model.get("name"),
-                    "name": model.get("name"),
-                    "memory_required_gb": size_gb
-                })
-
-            return formatted_models
-
-        except httpx.HTTPError:
-            return []
 
 class ModelClient:
-    def __init__(self, model="mistral:latest"):
-        self.url = "http://localhost:11434/api/generate"
+    """Small adapter around Groq's hosted chat-completions API."""
+    def __init__(self, model: str = GROQ_CHAT_MODEL):
         self.model = model
+        self.client = get_groq_client()
 
     def _generate(self, prompt: str, max_tokens: int = 200, temperature: float = 0.3) -> str:
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "num_predict": max_tokens,
-                "temperature": temperature
-            }
-        }
-        try:
-            response = httpx.post(self.url, json=payload, timeout=300)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("response", "").strip()
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            max_completion_tokens=max_tokens,
+            temperature=temperature,
+        )
+        content = response.choices[0].message.content
+        return (content or "").strip()
 
-        except httpx.HTTPError as e:
-            raise Exception(f"Failed to connect to Ollama: {e}")
-    
     async def summarize_chunks(self, prompts: List[str]) -> List[str]:
         semaphore = asyncio.Semaphore(2)
 
-        async def generate_summary(prompt):
+        async def generate_summary(prompt: str) -> str:
             async with semaphore:
                 return await asyncio.to_thread(
-                    self._generate,
-                    prompt,
-                    max_tokens=200,
-                    temperature=0.3
+                    self._generate, prompt, max_tokens=500, temperature=0.3
                 )
 
-        tasks = [
-            generate_summary(prompt)
-            for prompt in prompts
-        ]
-
-        summaries = await asyncio.gather(*tasks, return_exceptions=True)
+        summaries = await asyncio.gather(
+            *(generate_summary(prompt) for prompt in prompts),
+            return_exceptions=True,
+        )
         failures = [item for item in summaries if isinstance(item, Exception)]
         if failures:
             raise failures[0]
-
-        return [item.strip() for item in summaries]
+        return [str(item).strip() for item in summaries]
 
     async def consolidate_summaries(self, partials: List[str], query: str) -> str:
         combined_text = "\n\n".join(partials)
-
         final_prompt = (
-            "You are an academic assistant.\n"
-            f"{query.strip()}\n\n"
-            "Partial summaries:\n"
-            f"{combined_text}\n\n"
-            "Final summary:\n"
+            "You are an academic assistant. Follow the instructions and use only the "
+            "information in the supplied partial summaries.\n"
+            f"{query.strip()}\n\nPartial summaries:\n{combined_text}\n\nFinal summary:"
+        )
+        return await asyncio.to_thread(
+            self._generate, final_prompt, max_tokens=800, temperature=0.3
         )
 
-        final_summary = await asyncio.to_thread(
-            self._generate,
-            final_prompt,
-            max_tokens=300,
-            temperature=0.3
-        )
 
-        return final_summary.strip()
-
-# instantiate model client and whisper model globally
-model_service = ModelService()
 model_client = None
-whisper_model = None
 loaded_model = None
 
 # --- FastAPI app ---
-app = FastAPI(title="ClassCapsule API", version="1.0")
+app = FastAPI(title="ClassCapsule API", version="1.1")
 
 app.add_middleware(
     CORSMiddleware,
@@ -159,7 +111,7 @@ class SummarizeRequest(BaseModel):
     transcript: str = Field(..., description="Full lecture transcript text. Prefer format: [00:05:12] Speaker: ...")
     options: SummaryOptions = Field(default_factory=SummaryOptions)
     # optional metadata
-    model: Optional[str] = "mistral:latest"
+    model: Optional[str] = None
     lecture_title: Optional[str] = None
     max_tokens_for_model: Optional[int] = 3000
 
@@ -308,46 +260,24 @@ async def summarize(req: SummarizeRequest):
                                 "instructions": []
                             })
 
-    # ensure model service is ready
-    if not model_service.check_ollama_running():
+    # The frontend lists only the model configured by the deployment owner.
+    selected_model = req.model or GROQ_CHAT_MODEL
+    if selected_model != GROQ_CHAT_MODEL:
         raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "LLM_NOT_READY",
-                "message": "Ollama is not running",
-                "instructions": [
-                    "Install Ollama: https://ollama.com/download",
-                    "Run: ollama serve",
-                    "Run: ollama pull mistral"
-                ]
-            }
+            status_code=400,
+            detail="The requested model is not enabled. Configure GROQ_CHAT_MODEL on the server.",
         )
-    
-    selected_model = req.model or "mistral:latest"
-    print("Using model:", selected_model)
+    print("Using hosted model:", selected_model)
 
-    base_model_name = (selected_model.split(":")[0])
-
-    if not model_service.check_model_available(base_model_name):
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "LLM_NOT_READY",
-                "message":
-                    f"{selected_model} not found",
-                "instructions": [
-                    f"Run: ollama pull {base_model_name}"
-                ]
-            }
-        )
-
-    # only switch if model changed
-    if (model_client is None or loaded_model != selected_model):
-        print(f"Loading model: {selected_model}")
-        model_client = ModelClient(model=selected_model)
-        loaded_model = selected_model
-    else:
-        print(f"Using cached model: {selected_model}")
+    try:
+        if model_client is None or loaded_model != selected_model:
+            model_client = ModelClient(model=selected_model)
+            loaded_model = selected_model
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Could not initialize hosted AI client")
+        raise HTTPException(status_code=502, detail="Could not initialize the hosted AI provider.") from exc
 
     # chunk transcript
     # choose chunk size based on expected model context; adjust as desired
@@ -424,33 +354,39 @@ async def transcribe_audio(
     file: UploadFile = File(...),
     lecture_title: Optional[str] = Form(None),
 ):
-    global whisper_model
-
+    """Transcribe uploaded audio using Groq-hosted Whisper; no local model download."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded")
 
-    # Load Whisper model lazily
-    if whisper_model is None:
-        whisper_model = whisper.load_model("base")  # base is good for prototype
-
-    # Save uploaded audio to temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        contents = await file.read()
-        tmp.write(contents)
-        tmp_path = tmp.name
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="The uploaded audio file is empty")
 
     try:
-        # FP16 is for CUDA. On CPU, Whisper only supports FP32.
-        use_fp16 = whisper_model.device.type == "cuda"
-        result = whisper_model.transcribe(tmp_path, fp16=use_fp16)
-        transcript_text = result["text"].strip()
-        detected_language = result.get("language")
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        client = get_groq_client()
+        result = await asyncio.to_thread(
+            client.audio.transcriptions.create,
+            file=(file.filename, contents),
+            model=GROQ_STT_MODEL,
+            response_format="verbose_json",
+        )
+        transcript_text = (getattr(result, "text", "") or "").strip()
+        detected_language = getattr(result, "language", None)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Hosted audio transcription failed")
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "TRANSCRIPTION_PROVIDER_ERROR",
+                "message": "Hosted transcription failed. Check the API key, audio format, provider limits, and usage quota.",
+                "instructions": [],
+            },
+        ) from exc
 
     if not transcript_text:
-        raise HTTPException(status_code=500, detail="Transcription failed")
+        raise HTTPException(status_code=502, detail="The transcription provider returned an empty transcript")
 
     stem_source = (lecture_title or "").strip() or file.filename
     safe_name = safe_filename_stem(
@@ -458,30 +394,29 @@ async def transcribe_audio(
         "lecture",
         strip_extension=not (lecture_title or "").strip(),
     )
-    save_text_to_file(
-        "data/transcripts",
-        f"{safe_name}_transcript.txt",
-        transcript_text
-    )
+    save_text_to_file("data/transcripts", f"{safe_name}_transcript.txt", transcript_text)
 
-    return {
-        "transcript": transcript_text,
-        "language": detected_language
-    }
+    return {"transcript": transcript_text, "language": detected_language}
 
-# --- Endpoint to list available models in Ollama ---
+
+# --- Endpoint to list the configured hosted model ---
 @app.get("/v1/models")
 async def get_models():
-    if not model_service.check_ollama_running():
+    if not GROQ_API_KEY:
         raise HTTPException(
             status_code=503,
-            detail="Ollama is not running"
+            detail={
+                "error": "AI_PROVIDER_NOT_CONFIGURED",
+                "message": "GROQ_API_KEY is not configured on the server.",
+                "instructions": ["Add GROQ_API_KEY in the Render service Environment settings."],
+            },
         )
-
-    models = model_service.get_available_models()
-
     return {
-        "models": models
+        "models": [{
+            "id": GROQ_CHAT_MODEL,
+            "name": f"{GROQ_CHAT_MODEL} (hosted)",
+            "memory_required_gb": None,
+        }]
     }
 
 # --- Health and example endpoints ---
@@ -489,9 +424,9 @@ async def get_models():
 async def health():
     return {
         "status": "ok",
-        "ollama_running": model_service.check_ollama_running(),
-        "model_available": model_service.check_model_available("mistral"),
-        "model": "mistral"
+        "ai_provider_configured": bool(GROQ_API_KEY),
+        "chat_model": GROQ_CHAT_MODEL,
+        "transcription_model": GROQ_STT_MODEL,
     }
 
 @app.get("/example_request")

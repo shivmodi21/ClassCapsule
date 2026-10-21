@@ -33,11 +33,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const modelMemoryInfo = document.getElementById("modelMemoryInfo");
     const modelHelp = document.getElementById("modelHelp");
     const modelHelpText = document.getElementById("modelHelpText");
-    const modelToPull = document.getElementById("modelToPull");
-    const modelPullCommand = document.getElementById("modelPullCommand");
-    const modelNameError = document.getElementById("modelNameError");
     const reloadModelsBtn = document.getElementById("reloadModelsBtn");
-    let selectedModel = "mistral:latest";
+    let selectedModel = "openai/gpt-oss-20b";
     let modelSelectBound = false;
 
     const FATAL_RECOGNITION_ERRORS = [
@@ -175,26 +172,11 @@ document.addEventListener("DOMContentLoaded", () => {
     function showModelHelp(message) {
         modelHelp.hidden = false;
         modelHelpText.textContent = message;
-        updatePullCommand();
     }
 
     function hideModelHelp() {
         modelHelp.hidden = true;
         modelHelpText.textContent = "";
-    }
-
-    function updatePullCommand() {
-        const name = modelToPull.value.trim();
-        const safeName = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,80}$/.test(name);
-        if (!name || !safeName) {
-            modelNameError.innerText = name
-                ? "Use letters, numbers, and . _ : - only. Example: llama3.2"
-                : "";
-            modelPullCommand.textContent = "ollama pull llama3.2";
-            return;
-        }
-        modelNameError.innerText = "";
-        modelPullCommand.textContent = `ollama pull ${name}`;
     }
 
     function bindModelSelect() {
@@ -206,15 +188,15 @@ document.addEventListener("DOMContentLoaded", () => {
             selectedModel = selectedOption.value;
             const memory = selectedOption.dataset.memory;
             modelMemoryInfo.innerText = memory
-                ? `Required memory: ${memory} GB`
-                : "Required memory: --";
+                ? `Hosted model (no local model download)`
+                : "Hosted AI model";
         });
     }
 
     async function loadModels() {
         reloadModelsBtn.disabled = true;
         try {
-            const res = await fetch("http://127.0.0.1:8000/v1/models");
+            const res = await fetch("/v1/models");
 
             if (!res.ok) {
                 let detail = "";
@@ -225,16 +207,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     detail = "";
                 }
                 modelSelect.innerHTML = "<option>Models unavailable</option>";
-                modelMemoryInfo.innerText = "Required memory: --";
-                if (res.status === 503) {
-                    showModelHelp(
-                        "Models are not listed because Ollama is not running. Leave the backend terminal open. In another terminal, run: ollama serve. Then install a model with the command below and check again."
-                    );
-                } else {
-                    showModelHelp(
-                        detail || `Could not load models (server error ${res.status}).`
-                    );
-                }
+                modelMemoryInfo.innerText = "Hosted AI model";
+                showModelHelp(
+                    detail || `Could not load the hosted AI model (server error ${res.status}). Check the GROQ_API_KEY environment variable in Render, then retry.`
+                );
                 return;
             }
 
@@ -243,10 +219,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (!Array.isArray(data.models) || data.models.length === 0) {
                 modelSelect.innerHTML = "<option>No models found</option>";
-                modelMemoryInfo.innerText = "No Ollama models are available";
-                showModelHelp(
-                    "Ollama is running, but no models are installed. In another terminal, run the pull command below. When it finishes, click Check for models."
-                );
+                modelMemoryInfo.innerText = "Hosted AI model unavailable";
+                showModelHelp("The server did not return a configured hosted model. Check GROQ_CHAT_MODEL and GROQ_API_KEY in Render.");
                 return;
             }
 
@@ -255,12 +229,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 const option = document.createElement("option");
                 option.value = model.id;
                 option.textContent = model.name;
-                option.dataset.memory = model.memory_required_gb;
+                option.dataset.memory = model.memory_required_gb ?? "";
                 modelSelect.appendChild(option);
                 if (index === 0) {
                     selectedModel = model.id;
-                    modelMemoryInfo.innerText =
-                        `Required memory: ${model.memory_required_gb} GB`;
+                    modelMemoryInfo.innerText = "Hosted model (no local model download)";
                 }
             });
             bindModelSelect();
@@ -268,9 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error(err);
             modelSelect.innerHTML = "<option>Error loading models</option>";
             modelMemoryInfo.innerText = "Could not connect to backend";
-            showModelHelp(
-                "Could not connect to the backend at http://127.0.0.1:8000. In a terminal, run: python -m uvicorn backend.app:app --reload. If the backend is already running, start Ollama in another terminal with: ollama serve"
-            );
+            showModelHelp("Could not connect to the ClassCapsule backend. Refresh the page or check the Render deployment logs.");
         } finally {
             reloadModelsBtn.disabled = false;
         }
@@ -439,7 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
         formData.append("lecture_title", lectureName);
 
         try {
-        const res = await fetch("http://127.0.0.1:8000/v1/transcribe", {
+        const res = await fetch("/v1/transcribe", {
             method: "POST",
             body: formData,
             signal: controller.signal
@@ -539,7 +510,7 @@ document.addEventListener("DOMContentLoaded", () => {
         summarizeController = controller;
 
         try {
-            const res = await fetch("http://127.0.0.1:8000/v1/summarize", {
+            const res = await fetch("/v1/summarize", {
                 method: "POST",
                 headers: {
                 "Content-Type": "application/json"
@@ -593,7 +564,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    modelToPull.addEventListener("input", updatePullCommand);
     reloadModelsBtn.addEventListener("click", () => {
         loadModels();
     });

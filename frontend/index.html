@@ -68,23 +68,13 @@
     </select>
 
     <div id="modelMemoryInfo">
-      Required memory: --
+      Hosted AI model
     </div>
 
     <div id="modelHelp" hidden>
       <p id="modelHelpText"></p>
-      <p>ClassCapsule does not download models. In another terminal, run:</p>
-      <pre id="modelPullCommand">ollama pull llama3.2</pre>
-      <label for="modelToPull">Model you want</label>
-      <input
-        type="text"
-        id="modelToPull"
-        value="llama3.2"
-        placeholder="e.g. llama3.2 or mistral"
-      />
-      <div class="status" id="modelNameError"></div>
-      <p>Other options: gemma2:2b, qwen2.5:3b, phi3, mistral.</p>
-      <button type="button" id="reloadModelsBtn">Check for models</button>
+      <p>Configure the hosted AI provider in the server environment variables. API keys must never be added to frontend code.</p>
+      <button type="button" id="reloadModelsBtn">Retry connection</button>
     </div>
   </div>
   

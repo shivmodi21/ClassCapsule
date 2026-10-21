@@ -1,6 +1,7 @@
 # Python bytecode
 __pycache__/
 *.pyc
+*.py[cod]
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
@@ -18,5 +19,9 @@ Thumbs.db
 # Cache and data directories
 .cache/
 data/
-*.gguf
+
+# Environment variables
+.env
+.env.*
+!.env.example
 

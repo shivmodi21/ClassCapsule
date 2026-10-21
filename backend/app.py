@@ -29,8 +29,7 @@ def get_groq_client() -> Groq:
             status_code=503,
             detail={
                 "error": "AI_PROVIDER_NOT_CONFIGURED",
-                "message": "The hosted AI provider is not configured.",
-                "instructions": ["Add GROQ_API_KEY in the Render service Environment settings."],
+                "message": "API key is not set.",
             },
         )
     if _groq_client is None:
@@ -265,7 +264,7 @@ async def summarize(req: SummarizeRequest):
     if selected_model != GROQ_CHAT_MODEL:
         raise HTTPException(
             status_code=400,
-            detail="The requested model is not enabled. Configure GROQ_CHAT_MODEL on the server.",
+            detail="Model not enabled on the server.",
         )
     print("Using hosted model:", selected_model)
 
@@ -277,7 +276,7 @@ async def summarize(req: SummarizeRequest):
         raise
     except Exception as exc:
         logger.exception("Could not initialize hosted AI client")
-        raise HTTPException(status_code=502, detail="Could not initialize the hosted AI provider.") from exc
+        raise HTTPException(status_code=502, detail="Could not connect to AI provider.") from exc
 
     # chunk transcript
     # choose chunk size based on expected model context; adjust as desired
@@ -380,8 +379,7 @@ async def transcribe_audio(
             status_code=502,
             detail={
                 "error": "TRANSCRIPTION_PROVIDER_ERROR",
-                "message": "Hosted transcription failed. Check the API key, audio format, provider limits, and usage quota.",
-                "instructions": [],
+                "message": "Transcription failed.",
             },
         ) from exc
 
@@ -407,8 +405,7 @@ async def get_models():
             status_code=503,
             detail={
                 "error": "AI_PROVIDER_NOT_CONFIGURED",
-                "message": "GROQ_API_KEY is not configured on the server.",
-                "instructions": ["Add GROQ_API_KEY in the Render service Environment settings."],
+                "message": "API key is not set.",
             },
         )
     return {
@@ -444,6 +441,6 @@ def example_request():
         "lecture_title": "Intro to Probability"
     }
 
-# Serve the website at http://127.0.0.1:8000/. API routes above stay in front of this.
+
 _frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")

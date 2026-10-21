@@ -23,11 +23,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const summaryEl = document.getElementById("summary");
 
     const audioFileInput = document.getElementById("audioFileInput");
+    const audioFileName = document.getElementById("audioFileName");
+    const audioFileHint = document.getElementById("audioFileHint");
+    const audioDropZone = document.getElementById("audioDropZone");
     const uploadAudioBtn = document.getElementById("uploadAudioBtn");
     const audioStatus = document.getElementById("audioStatus");
     const detectedLanguageEl = document.getElementById("detectedLanguage");
 
     const clearBtn = document.getElementById("clearBtn");
+    const copyTranscriptBtn = document.getElementById("copyTranscriptBtn");
+    const clearTranscriptBtn = document.getElementById("clearTranscriptBtn");
+    const copySummaryBtn = document.getElementById("copySummaryBtn");
+    const clearSummaryBtn = document.getElementById("clearSummaryBtn");
 
     const modelSelect = document.getElementById("modelSelect");
     const modelMemoryInfo = document.getElementById("modelMemoryInfo");
@@ -70,10 +77,82 @@ document.addEventListener("DOMContentLoaded", () => {
         return epoch === lectureEpoch;
     }
 
+    function formatFileSize(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) return "";
+        const units = ["B", "KB", "MB", "GB"];
+        let size = bytes;
+        let unit = 0;
+        while (size >= 1024 && unit < units.length - 1) {
+            size /= 1024;
+            unit += 1;
+        }
+        const digits = size >= 10 || unit === 0 ? 0 : 1;
+        return `${size.toFixed(digits)} ${units[unit]}`;
+    }
+
+    function setAudioFileLabel(file) {
+        if (!audioFileName) return;
+        if (file) {
+            audioFileName.textContent = file.name;
+            audioFileName.title = file.name;
+            if (audioFileHint) {
+                const sizeLabel = formatFileSize(file.size);
+                audioFileHint.textContent = sizeLabel
+                    ? `${sizeLabel} · Ready to upload & transcribe`
+                    : "Ready to upload & transcribe";
+            }
+            audioDropZone?.classList.add("has-file");
+        } else {
+            audioFileName.textContent = "Drop audio or browse";
+            audioFileName.title = "";
+            if (audioFileHint) {
+                audioFileHint.textContent = "MP3, WAV, M4A, WebM…";
+            }
+            audioDropZone?.classList.remove("has-file");
+        }
+    }
+
+    function assignAudioFile(file) {
+        if (!file || audioFileInput.disabled) return;
+        if (!file.type.startsWith("audio/") && !/\.(mp3|wav|m4a|webm|ogg|flac|aac)$/i.test(file.name)) {
+            audioStatus.innerText = "Please choose an audio file.";
+            return;
+        }
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        audioFileInput.files = transfer.files;
+        audioStatus.innerText = "";
+        setAudioFileLabel(file);
+    }
+
     function updateButtons() {
         const hasText = transcriptEl.innerText.trim().length > 0;
+        const hasSummary = summaryEl.innerText.trim().length > 0;
         downloadTranscriptBtn.disabled = !hasText;
         summarizeBtn.disabled = !hasText;
+        if (copyTranscriptBtn) copyTranscriptBtn.disabled = !hasText;
+        if (clearTranscriptBtn) clearTranscriptBtn.disabled = !hasText;
+        if (copySummaryBtn) copySummaryBtn.disabled = !hasSummary;
+        if (clearSummaryBtn) clearSummaryBtn.disabled = !hasSummary;
+    }
+
+    async function copyPanelText(sourceEl, feedbackBtn) {
+        const text = sourceEl.innerText.trim();
+        if (!text) return;
+
+        const originalLabel = feedbackBtn.textContent;
+        try {
+            await navigator.clipboard.writeText(text);
+            feedbackBtn.textContent = "Copied!";
+            feedbackBtn.classList.add("is-copied");
+        } catch {
+            feedbackBtn.textContent = "Failed";
+        }
+
+        window.setTimeout(() => {
+            feedbackBtn.textContent = originalLabel;
+            feedbackBtn.classList.remove("is-copied");
+        }, 1600);
     }
 
     function enableLiveInputs() {
@@ -128,6 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
         summaryIsCurrent = false;
         downloadSummaryBtn.disabled = true;
         summaryEl.innerText = "";
+        updateButtons();
     }
 
     function requireLectureName(actionLabel) {
@@ -147,26 +227,35 @@ document.addEventListener("DOMContentLoaded", () => {
         return lectureName;
     }
 
-    async function errorMessageFromResponse(res) {
-        let err = null;
-        try {
-            err = await res.json();
-        } catch {
-            return `Server error (${res.status}). Please try again later.`;
-        }
+    function shortErrorFromDetail(detail, status) {
+        const byCode = {
+            AI_PROVIDER_NOT_CONFIGURED: "API key is not set.",
+            TRANSCRIPTION_PROVIDER_ERROR: "Transcription failed.",
+            INVALID_REQUEST: "Invalid request.",
+            MODEL_ERROR: "AI model error.",
+        };
 
-        const detail = err && err.detail;
         if (typeof detail === "string" && detail.trim()) {
-            return detail;
+            return detail.trim();
         }
         if (detail && typeof detail === "object" && !Array.isArray(detail)) {
-            const lines = [detail.message || `Server error (${res.status}).`];
-            if (Array.isArray(detail.instructions) && detail.instructions.length) {
-                lines.push("", ...detail.instructions);
+            if (detail.error && byCode[detail.error]) {
+                return byCode[detail.error];
             }
-            return lines.join("\n");
+            if (typeof detail.message === "string" && detail.message.trim()) {
+                return detail.message.trim();
+            }
         }
-        return `Server error (${res.status}). Please try again later.`;
+        return status ? `Server error (${status}).` : "Something went wrong.";
+    }
+
+    async function errorMessageFromResponse(res) {
+        try {
+            const err = await res.json();
+            return shortErrorFromDetail(err?.detail, res.status);
+        } catch {
+            return `Server error (${res.status}).`;
+        }
     }
 
     function showModelHelp(message) {
@@ -199,18 +288,16 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetch("/v1/models");
 
             if (!res.ok) {
-                let detail = "";
+                let message = "Could not load AI model.";
                 try {
                     const err = await res.json();
-                    detail = typeof err.detail === "string" ? err.detail : "";
+                    message = shortErrorFromDetail(err?.detail, res.status);
                 } catch {
-                    detail = "";
+                    message = `Could not load AI model (${res.status}).`;
                 }
                 modelSelect.innerHTML = "<option>Models unavailable</option>";
-                modelMemoryInfo.innerText = "Hosted AI model";
-                showModelHelp(
-                    detail || `Could not load the hosted AI model (server error ${res.status}). Check the GROQ_API_KEY environment variable in Render, then retry.`
-                );
+                modelMemoryInfo.innerText = "AI model unavailable";
+                showModelHelp(message);
                 return;
             }
 
@@ -220,7 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!Array.isArray(data.models) || data.models.length === 0) {
                 modelSelect.innerHTML = "<option>No models found</option>";
                 modelMemoryInfo.innerText = "Hosted AI model unavailable";
-                showModelHelp("The server did not return a configured hosted model. Check GROQ_CHAT_MODEL and GROQ_API_KEY in Render.");
+                showModelHelp("No AI model configured on the server.");
                 return;
             }
 
@@ -240,8 +327,8 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (err) {
             console.error(err);
             modelSelect.innerHTML = "<option>Error loading models</option>";
-            modelMemoryInfo.innerText = "Could not connect to backend";
-            showModelHelp("Could not connect to the ClassCapsule backend. Refresh the page or check the Render deployment logs.");
+            modelMemoryInfo.innerText = "Backend unreachable";
+            showModelHelp("Could not connect to the server.");
         } finally {
             reloadModelsBtn.disabled = false;
         }
@@ -258,6 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         lectureNameInput.value = "";
         audioFileInput.value = "";
+        setAudioFileLabel(null);
 
         statusEl.innerText = "Status: IDLE";
         audioStatus.innerText = "";
@@ -268,6 +356,7 @@ document.addEventListener("DOMContentLoaded", () => {
         downloadSummaryBtn.disabled = true;
         summarizeBtn.disabled = true;
         enableLiveInputs();
+        updateButtons();
     }
 
     if (recog) {
@@ -330,7 +419,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     audioFileInput.addEventListener("change", () => {
         audioStatus.innerText = "";
+        setAudioFileLabel(audioFileInput.files[0] || null);
     });
+
+    if (audioDropZone) {
+        ["dragenter", "dragover"].forEach((eventName) => {
+            audioDropZone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                if (audioFileInput.disabled) return;
+                audioDropZone.classList.add("is-dragover");
+            });
+        });
+        ["dragleave", "drop"].forEach((eventName) => {
+            audioDropZone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                audioDropZone.classList.remove("is-dragover");
+            });
+        });
+        audioDropZone.addEventListener("drop", (event) => {
+            if (audioFileInput.disabled) return;
+            const file = event.dataTransfer?.files?.[0];
+            if (file) assignAudioFile(file);
+        });
+    }
 
     lectureNameInput.addEventListener("input", () => {
         lectureError.innerText = "";
@@ -374,9 +485,19 @@ document.addEventListener("DOMContentLoaded", () => {
     clearBtn.onclick = () => {
         if (confirm("Clear current lecture and start a new one?")) {
             resetLecture();
-            window.scrollTo({ top: 0, behavior: "smooth" });
         }
     };
+
+    copyTranscriptBtn.onclick = () => copyPanelText(transcriptEl, copyTranscriptBtn);
+    clearTranscriptBtn.onclick = () => {
+        if (!transcriptEl.innerText.trim()) return;
+        transcriptEl.innerText = "";
+        invalidateSummary();
+        updateButtons();
+        transcriptEl.focus();
+    };
+    copySummaryBtn.onclick = () => copyPanelText(summaryEl, copySummaryBtn);
+    clearSummaryBtn.onclick = () => clearSummaryOutput();
 
     uploadAudioBtn.onclick = async () => {
         if (isRecording) {
@@ -439,7 +560,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (err) {
             if (err.name === "AbortError" || !isCurrentLecture(epoch)) return;
             console.error(err);
-            audioStatus.innerText = "Error during transcription.";
+            audioStatus.innerText = "Transcription failed.";
         } finally {
             if (uploadController === controller) {
                 uploadController = null;
@@ -547,11 +668,9 @@ document.addEventListener("DOMContentLoaded", () => {
             summaryIsCurrent = summaryEl.innerText.trim().length > 0;
             downloadSummaryBtn.disabled = !summaryIsCurrent;
 
-            document.getElementById("summaryTitle").scrollIntoView({ behavior: "smooth" });
-
         } catch (err) {
             if (err.name === "AbortError" || !isCurrentLecture(epoch)) return;
-            summaryEl.innerText = "Error connecting to backend.";
+            summaryEl.innerText = "Could not connect to the server.";
             console.error(err);
         }
         finally {
@@ -569,5 +688,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     loadModels();
+    updateButtons();
 
 });

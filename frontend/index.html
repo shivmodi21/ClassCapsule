@@ -1,91 +1,148 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Class Capsule</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Lecture Summarizer</h1>
+  <div class="app-shell">
+    <header class="app-header">
+      <h1>Lecture Summarizer</h1>
+    </header>
 
-  <div style="margin-top:1rem;">
-    <label for="lectureName"><b>Lecture Name:</b></label><br>
-    <input
-      type="text"
-      id="lectureName"
-      placeholder="e.g. Probability_Bayes_Theorem"
-      style="width:100%; padding:0.6rem; margin-top:0.3rem;"
-    />
-    <div class="status" id="lectureError" style="color:red;"></div>
-  </div>
+    <div class="app-grid">
+      <div class="top-row">
+      <section class="panel panel--lecture">
+        <label for="lectureName"><b>Lecture Name</b></label>
+        <input
+          type="text"
+          id="lectureName"
+          placeholder="e.g. Probability_Bayes_Theorem"
+        />
+        <div class="status" id="lectureError"></div>
+      </section>
 
-  <h3>Upload Lecture Audio</h3>
+      <section class="panel panel--language">
+        <label for="langSelect"><b>Language</b></label>
+        <select id="langSelect">
+          <option value="en-US">English (US)</option>
+          <option value="en-IN">English (India)</option>
+          <option value="hi-IN">Hindi</option>
+          <option value="gu-IN">Gujarati</option>
+          <option value="ta-IN">Tamil</option>
+          <option value="kn-IN">Kannada</option>
+          <option value="mr-IN">Marathi</option>
+          <option value="te-IN">Telugu</option>
+        </select>
+      </section>
 
-  <div class="audio-upload-row">
-    <input
-      type="file"
-      id="audioFileInput"
-      accept="audio/*"
-    />
-    <button id="uploadAudioBtn">Upload & Transcribe</button>
-  </div>
+      <section class="panel panel--live">
+        <h2 class="panel__heading">Live Recording</h2>
+        <div class="button-row button-row--live">
+          <button type="button" id="startBtn">Start</button>
+          <button type="button" id="stopBtn" disabled>Stop</button>
+          <button type="button" id="clearBtn">Clear & New Lecture</button>
+        </div>
+        <div class="status status--emphasis" id="status">Status: IDLE</div>
+      </section>
 
-  <div class="status" id="audioStatus"></div>
-  <div class="status" id="detectedLanguage"></div>
+      <section class="panel panel--upload">
+        <span class="panel__heading" id="audioUploadLabel"><b>Upload File</b></span>
+        <div class="upload-row">
+        <div class="file-upload file-upload--zone file-upload--compact" id="audioDropZone" role="group" aria-labelledby="audioUploadLabel">
+          <input
+            type="file"
+            id="audioFileInput"
+            class="file-upload__input"
+            accept="audio/*"
+          />
+          <div class="file-upload__zone-inner">
+            <div class="file-upload__icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.75"/>
+                <circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.75"/>
+              </svg>
+            </div>
+            <div class="file-upload__copy">
+              <span id="audioFileName" class="file-upload__title" title="">Drop audio or browse</span>
+              <span id="audioFileHint" class="file-upload__hint">MP3, WAV, M4A, WebM…</span>
+            </div>
+            <label for="audioFileInput" class="file-upload__browse">Browse</label>
+          </div>
+        </div>
+        <button type="button" id="uploadAudioBtn">Upload & Transcribe</button>
+        </div>
+        <div class="status" id="audioStatus"></div>
+        <div class="status" id="detectedLanguage"></div>
+      </section>
+      </div>
 
-  <hr style="margin:1.5rem 0;">
+      <div class="body-row">
+      <aside class="side-rail">
+        <section class="panel panel--model model-selector">
+          <label for="modelSelect"><b>AI Model</b></label>
+          <select id="modelSelect">
+            <option>Loading models...</option>
+          </select>
+          <div id="modelMemoryInfo">Hosted AI model</div>
+          <div id="modelHelp" hidden>
+            <p id="modelHelpText"></p>
+            <button type="button" id="reloadModelsBtn">Retry</button>
+          </div>
+        </section>
 
-  <!-- Language Selector -->
-  <label for="langSelect"><b>Language:</b></label>
-  <select id="langSelect">
-    <option value="en-US">English (US)</option>
-    <option value="en-IN">English (India)</option>
-    <option value="hi-IN">Hindi</option>
-    <option value="gu-IN">Gujarati</option>
-    <option value="ta-IN">Tamil</option>
-    <option value="kn-IN">Kannada</option>
-    <option value="mr-IN">Marathi</option>
-    <option value="te-IN">Telugu</option>
-  </select>
+        <section class="panel panel--actions">
+          <h2 class="panel__heading">Actions</h2>
+          <div class="button-row button-row--stack">
+            <button type="button" id="downloadTranscriptBtn" disabled>Download Transcript</button>
+            <button type="button" id="summarizeBtn" disabled>Summarize</button>
+            <button type="button" id="downloadSummaryBtn" disabled>Download Summary</button>
+          </div>
+        </section>
+      </aside>
 
-  <div style="margin-top: 1rem;">
-    <button id="startBtn">Start</button>
-    <button id="stopBtn" disabled>Stop</button>
-    <button id="clearBtn">Clear & New Lecture</button>
-  </div>
+      <main class="workspace">
+        <div class="workspace-columns">
+          <div class="text-panel">
+            <div class="text-panel__header">
+              <h2 class="text-panel__title" id="transcriptTitle">Transcript</h2>
+              <div class="text-panel__actions">
+                <button type="button" class="btn-toolbar" id="copyTranscriptBtn" title="Copy transcript to clipboard">Copy</button>
+                <button type="button" class="btn-toolbar" id="clearTranscriptBtn" title="Clear transcript text">Clear</button>
+              </div>
+            </div>
+            <div
+              id="transcript"
+              class="text-panel__body"
+              contenteditable="true"
+              aria-labelledby="transcriptTitle"
+              data-placeholder="Live transcript or uploaded audio text appears here…"
+            ></div>
+          </div>
 
-  <div class="status" id="status">Status: IDLE</div>
-
-  <div id="transcript" contenteditable="true"></div>
-
-  <div class="model-selector">
-    <label for="modelSelect">
-      <b>AI Model:</b>
-    </label>
-
-    <select id="modelSelect">
-      <option>Loading models...</option>
-    </select>
-
-    <div id="modelMemoryInfo">
-      Hosted AI model
+          <div class="text-panel">
+            <div class="text-panel__header">
+              <h2 class="text-panel__title" id="summaryTitle">Summary</h2>
+              <div class="text-panel__actions">
+                <button type="button" class="btn-toolbar" id="copySummaryBtn" title="Copy summary to clipboard">Copy</button>
+                <button type="button" class="btn-toolbar" id="clearSummaryBtn" title="Clear summary text">Clear</button>
+              </div>
+            </div>
+            <div
+              id="summary"
+              class="text-panel__body"
+              aria-labelledby="summaryTitle"
+              data-placeholder="Run Summarize to generate an AI summary…"
+            ></div>
+          </div>
+        </div>
+      </main>
+      </div>
     </div>
-
-    <div id="modelHelp" hidden>
-      <p id="modelHelpText"></p>
-      <p>Configure the hosted AI provider in the server environment variables. API keys must never be added to frontend code.</p>
-      <button type="button" id="reloadModelsBtn">Retry connection</button>
-    </div>
   </div>
-  
-  <div style="margin-top: 1rem;">
-    <button id="downloadTranscriptBtn" disabled>Download Transcript</button>
-    <button id="summarizeBtn" disabled>Summarize</button>
-    <button id="downloadSummaryBtn" disabled>Download Summary</button>
-  </div>
-
-  <h2 id="summaryTitle">Summary</h2>
-  <div id="summary" style="white-space: pre-wrap; border:1px solid #ddd; padding:1rem;"></div>
 
   <script src="script.js"></script>
 </body>

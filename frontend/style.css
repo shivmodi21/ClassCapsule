@@ -2,7 +2,7 @@
    CSS RESET & VARIABLES
 ========================= */
 :root {
-  --primary: #2563eb;        /* blue */
+  --primary: #2563eb;
   --primary-dark: #1e40af;
   --success: #16a34a;
   --danger: #dc2626;
@@ -13,6 +13,14 @@
   --card: #ffffff;
   --radius: 10px;
   --shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+  --top-gap: 1rem;
+  --top-col-lecture: 0.9;
+  --top-col-language: 0.55;
+  --top-col-live: 0.95;
+  --top-col-upload: 1.8; /* 4.2 − lecture − language − live */
+  --top-fr-total: 4.2;
+  --side-rail-fr: 0.9; /* matches Lecture Name column */
+  --workspace-min-height: calc(100vh - 15rem);
 }
 
 *,
@@ -21,34 +29,97 @@
   box-sizing: border-box;
 }
 
-/* =========================
-   BASE STYLES
-========================= */
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  max-width: 780px;
-  margin: 2rem auto;
-  padding: 1.25rem;
+  margin: 0;
+  padding: 1rem 1.25rem 1.5rem;
   line-height: 1.6;
+  min-height: 100vh;
 }
 
-h1 {
-  font-size: 2rem;
-  margin-bottom: 1.5rem;
+.app-shell {
+  width: min(1480px, 100%);
+  margin: 0 auto;
+}
+
+.app-header h1 {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  margin: 0 0 1rem;
   text-align: center;
 }
 
 h2 {
-  margin-top: 2rem;
-  margin-bottom: 0.75rem;
+  margin: 0;
 }
 
-h3 {
-  margin-top: 1.75rem;
-  margin-bottom: 0.5rem;
+/* =========================
+   APP GRID
+   Row 1: lecture | language | live | upload
+   Row 2–3: side rail | transcript + summary
+========================= */
+.app-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--top-gap);
+}
+
+.top-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 0.9fr)
+    minmax(0, 0.55fr)
+    minmax(0, 0.95fr)
+    minmax(0, 1.8fr);
+  gap: var(--top-gap);
+  align-items: stretch;
+}
+
+.body-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--top-gap);
+  min-height: var(--workspace-min-height);
+  align-items: stretch;
+}
+
+.side-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--top-gap);
+  min-width: 0;
+}
+
+.workspace {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  flex: 1;
+  min-height: 100%;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.panel__heading {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
 }
 
 /* =========================
@@ -56,15 +127,16 @@ h3 {
 ========================= */
 label {
   font-weight: 600;
+  display: block;
+  margin-bottom: 0.35rem;
 }
 
 input[type="text"],
-input[type="file"],
 select {
   width: 100%;
-  margin-top: 0.4rem;
-  padding: 0.65rem 0.75rem;
-  font-size: 0.95rem;
+  margin-top: 0;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.92rem;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: #fff;
@@ -78,37 +150,147 @@ select:focus {
 }
 
 /* =========================
-   AUDIO UPLOAD ROW
+   FILE UPLOAD
 ========================= */
-.audio-upload-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
+.file-upload {
+  position: relative;
+  min-width: 0;
 }
 
-#audioFileInput {
-  flex: 1;                /* takes remaining space */
+.file-upload__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.file-upload--zone {
+  border: 2px dashed #c7d2fe;
+  border-radius: calc(var(--radius) + 2px);
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 60%, #eff6ff 100%);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.file-upload--zone:focus-within,
+.file-upload--zone.is-dragover {
+  border-color: var(--primary);
+  border-style: solid;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.file-upload--zone.has-file {
+  border-style: solid;
+  border-color: #a5b4fc;
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #eff6ff 100%);
+}
+
+.file-upload__zone-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem 0.65rem;
+  padding: 0.55rem 0.65rem;
+  min-height: 3.25rem;
+}
+
+.file-upload--compact .file-upload__zone-inner {
+  min-height: 3rem;
+}
+
+.file-upload__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  color: var(--primary);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.12);
+}
+
+.file-upload__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-upload__title {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-upload__hint {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-upload__browse {
+  flex-shrink: 0;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: #fff;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: none;
+}
+
+.file-upload__browse:hover {
+  background: #eff6ff;
+  border-color: var(--primary);
+}
+
+.file-upload__input:disabled ~ .file-upload__zone-inner {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.panel--upload .status {
+  margin-top: 0.35rem;
+}
+
+.upload-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
 #uploadAudioBtn {
-  white-space: nowrap;
+  margin-top: 0;
+  width: 100%;
 }
-
 
 /* =========================
    BUTTONS
 ========================= */
 button {
-  padding: 0.6rem 1.1rem;
+  padding: 0.55rem 1rem;
   border-radius: var(--radius);
   border: none;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 500;
   cursor: pointer;
   background: var(--primary);
   color: #fff;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease;
   box-shadow: var(--shadow);
 }
 
@@ -127,7 +309,6 @@ button:disabled {
   box-shadow: none;
 }
 
-/* Secondary / utility buttons */
 #clearBtn {
   background: #374151;
 }
@@ -136,13 +317,70 @@ button:disabled {
   background: #111827;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.button-row--live {
+  flex-direction: column;
+}
+
+.button-row--live button {
+  width: 100%;
+}
+
+.button-row--stack {
+  flex-direction: column;
+}
+
+.button-row--stack button {
+  width: 100%;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-block--tight {
+  margin-top: 0.45rem;
+}
+
+.btn-toolbar {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+.btn-toolbar:hover:not(:disabled) {
+  background: var(--bg);
+  border-color: #cbd5e1;
+  transform: none;
+}
+
+.btn-toolbar.is-copied {
+  border-color: var(--success);
+  color: var(--success);
+}
+
 /* =========================
-   STATUS MESSAGES
+   STATUS
 ========================= */
 .status {
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
   color: var(--muted);
+}
+
+.status--emphasis {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.82rem;
 }
 
 #lectureError {
@@ -158,120 +396,192 @@ button:disabled {
   color: var(--success);
 }
 
-#status {
-  margin-top: 1rem;
-  font-weight: 600;
-}
-
 /* =========================
-   TRANSCRIPT & SUMMARY
+   TEXT PANELS
 ========================= */
-#transcript,
-#summary {
+.text-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem;
-  margin-top: 1rem;
-  min-height: 160px;
-  white-space: pre-wrap;
   box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
-#transcript {
+.text-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.text-panel__title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.text-panel__actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.text-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem;
+  white-space: pre-wrap;
   outline: none;
+  line-height: 1.55;
 }
 
-#transcript:focus {
-  border-color: var(--primary);
+.text-panel__body:focus {
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
-.model-selector {
-    margin-top: 1rem;
-    margin-bottom: 1rem;
+#transcript:empty::before,
+#summary:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  pointer-events: none;
 }
 
-.model-selector label {
-    display: block;
-    margin-bottom: 0.4rem;
-}
-
+/* =========================
+   MODEL
+========================= */
 #modelSelect {
-    width: 100%;
-    padding: 0.7rem;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    font-size: 15px;
-    background: white;
-    cursor: pointer;
-}
-
-#modelSelect:focus {
-    outline: none;
-    border-color: #666;
+  cursor: pointer;
 }
 
 #modelMemoryInfo {
-    margin-top: 0.4rem;
-    font-size: 0.9rem;
-    color: #666;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 #modelHelp {
-  margin-top: 0.75rem;
-  padding: 0.85rem 1rem;
+  margin-top: 0.65rem;
+  padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--card);
-  font-size: 0.92rem;
+  background: var(--bg);
+  font-size: 0.88rem;
 }
 
 #modelHelp p {
-  margin: 0.4rem 0;
-}
-
-#modelHelp pre {
-  margin: 0.5rem 0;
-  padding: 0.6rem 0.75rem;
-  border-radius: 8px;
-  background: var(--bg);
-  overflow-x: auto;
+  margin: 0.35rem 0;
 }
 
 #reloadModelsBtn {
-  margin-top: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.panel--actions .panel__heading {
+  margin-bottom: 0.65rem;
 }
 
 /* =========================
-   SECTIONS & DIVIDERS
+   LARGE SCREENS (desktop)
 ========================= */
-hr {
-  border: none;
-  height: 1px;
-  background: var(--border);
-  margin: 2rem 0;
-}
-
-/* Button groups */
-button + button {
-  margin-left: 0.5rem;
-}
-
-/* =========================
-   RESPONSIVE
-========================= */
-@media (max-width: 600px) {
-  body {
-    margin: 1rem auto;
-    padding: 1rem;
+@media (min-width: 1101px) {
+  .body-row {
+    grid-template-columns:
+      calc(
+        (100% - 3 * var(--top-gap)) * var(--side-rail-fr) / var(--top-fr-total)
+      )
+      minmax(0, 1fr);
   }
 
-  button {
+  .button-row--live {
+    display: grid;
+    grid-template-columns: 2fr 2fr 6fr;
+    gap: 0.45rem;
+    flex-direction: unset;
+  }
+
+  .button-row--live button {
+    width: auto;
+    min-width: 0;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .upload-row {
+    display: grid;
+    grid-template-columns: 6fr 4fr;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .upload-row .file-upload {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .upload-row #uploadAudioBtn {
+    height: 100%;
+    min-height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.25;
+  }
+}
+
+/* =========================
+   RESPONSIVE (tablet & mobile)
+========================= */
+@media (max-width: 1100px) {
+  .top-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .body-row {
+    grid-template-columns: 1fr;
+  }
+
+  .side-rail {
+    flex-direction: row;
+  }
+
+  .side-rail .panel {
+    flex: 1;
+  }
+
+  .workspace-columns {
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 700px) {
+  .top-row {
+    grid-template-columns: 1fr;
+  }
+
+  .side-rail {
+    flex-direction: column;
+  }
+
+  .workspace-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .file-upload__zone-inner {
+    flex-wrap: wrap;
+  }
+
+  .file-upload__browse {
     width: 100%;
-    margin-top: 0.5rem;
-  }
-
-  button + button {
-    margin-left: 0;
+    text-align: center;
   }
 }

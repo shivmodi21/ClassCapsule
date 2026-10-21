@@ -61,6 +61,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let recog = support ? new Recognition() : null;
 
+    /** Text already in the panel when the current live session started. */
+    let liveTranscriptBase = "";
+    /** Finalized speech from the current live session. */
+    let liveTranscriptCommitted = "";
+    /** In-progress speech from the current live session. */
+    let liveTranscriptInterim = "";
+
+    const RECORDING_UPLOAD_NOTICE = "Audio upload disabled while recording.";
+
+    function getTranscriptText() {
+        return (transcriptEl.textContent || "").replace(/\u200B/g, "").trim();
+    }
+
+    function setTranscriptText(text) {
+        transcriptEl.textContent = text;
+        liveTranscriptBase = text;
+        liveTranscriptCommitted = "";
+        liveTranscriptInterim = "";
+    }
+
+    function renderLiveTranscript() {
+        transcriptEl.textContent =
+            liveTranscriptBase + liveTranscriptCommitted + liveTranscriptInterim;
+    }
+
+    function resetLiveTranscriptSession() {
+        liveTranscriptBase = transcriptEl.textContent || "";
+        liveTranscriptCommitted = "";
+        liveTranscriptInterim = "";
+    }
+
+    function clearLiveTranscriptInterim() {
+        if (!liveTranscriptInterim) return;
+        liveTranscriptInterim = "";
+        renderLiveTranscript();
+    }
+
+    function clearRecordingUploadNotice() {
+        if (audioStatus.innerText === RECORDING_UPLOAD_NOTICE) {
+            audioStatus.innerText = "";
+        }
+    }
+
     function applyLanguage() {
         if (recog) {
             recog.lang = langSelect.value;
@@ -126,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateButtons() {
-        const hasText = transcriptEl.innerText.trim().length > 0;
+        const hasText = getTranscriptText().length > 0;
         const hasSummary = summaryEl.innerText.trim().length > 0;
         downloadTranscriptBtn.disabled = !hasText;
         summarizeBtn.disabled = !hasText;
@@ -160,6 +203,7 @@ document.addEventListener("DOMContentLoaded", () => {
         uploadAudioBtn.disabled = false;
         startBtn.disabled = !support;
         stopBtn.disabled = true;
+        clearRecordingUploadNotice();
     }
 
     function abortInFlight() {
@@ -339,7 +383,7 @@ document.addEventListener("DOMContentLoaded", () => {
         abortInFlight();
         stopRecognition("reset");
 
-        transcriptEl.innerText = "";
+        setTranscriptText("");
         summaryEl.innerText = "";
         summaryIsCurrent = false;
 
@@ -361,7 +405,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (recog) {
         recog.continuous = true;
-        recog.interimResults = false;
+        recog.interimResults = true;
 
         applyLanguage();
 
@@ -397,15 +441,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
         recog.onresult = (event) => {
             if (!isRecording) return;
-            let text = "";
+
+            let finalChunk = "";
+            let interimChunk = "";
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                if (event.results[i].isFinal) {
-                    text += event.results[i][0].transcript + " ";
+                const result = event.results[i];
+                const piece = result[0]?.transcript || "";
+                if (!piece) continue;
+                if (result.isFinal) {
+                    finalChunk += piece;
+                } else {
+                    interimChunk += piece;
                 }
             }
-            if (!text.trim() || !isRecording) return;
-            invalidateSummary();
-            transcriptEl.innerText += text;
+
+            if (finalChunk) {
+                invalidateSummary();
+                liveTranscriptCommitted += finalChunk.trim() + " ";
+                liveTranscriptInterim = "";
+            } else if (interimChunk) {
+                liveTranscriptInterim = interimChunk;
+            } else {
+                return;
+            }
+
+            if (!isRecording) return;
+            renderLiveTranscript();
             updateButtons();
         };
     }
@@ -448,6 +509,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     transcriptEl.addEventListener("input", () => {
+        if (isRecording) {
+            resetLiveTranscriptSession();
+        } else {
+            liveTranscriptBase = transcriptEl.textContent || "";
+            liveTranscriptCommitted = "";
+            liveTranscriptInterim = "";
+        }
         invalidateSummary();
         updateButtons();
     });
@@ -463,7 +531,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         audioFileInput.disabled = true;
         uploadAudioBtn.disabled = true;
-        audioStatus.innerText = "Audio upload disabled while recording.";
+        audioStatus.innerText = RECORDING_UPLOAD_NOTICE;
+        resetLiveTranscriptSession();
 
         applyLanguage();
         try {
@@ -478,6 +547,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     stopBtn.onclick = () => {
         stopRecognition("user");
+        clearLiveTranscriptInterim();
         statusEl.innerText = "Status: STOPPED";
         enableLiveInputs();
     };
@@ -490,8 +560,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     copyTranscriptBtn.onclick = () => copyPanelText(transcriptEl, copyTranscriptBtn);
     clearTranscriptBtn.onclick = () => {
-        if (!transcriptEl.innerText.trim()) return;
-        transcriptEl.innerText = "";
+        if (!getTranscriptText()) return;
+        setTranscriptText("");
         invalidateSummary();
         updateButtons();
         transcriptEl.focus();
@@ -550,7 +620,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!isCurrentLecture(epoch)) return;
 
         clearSummaryOutput();
-        transcriptEl.innerText = data.transcript || "";
+        setTranscriptText(data.transcript || "");
         audioStatus.innerText = "Transcription complete.";
         detectedLanguageEl.innerText = data.language
             ? "Detected language: " + data.language.toUpperCase()
@@ -579,7 +649,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const lectureName = requireLectureName("downloading the transcript");
         if (!lectureName) return;
 
-        const text = transcriptEl.innerText.trim();
+        const text = getTranscriptText();
         if (!text){
             lectureError.innerText = "Transcript is empty. Nothing to download.";
             return;
@@ -615,7 +685,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const lectureName = requireLectureName("summarizing");
         if (!lectureName) return;
 
-        const transcript = transcriptEl.innerText.trim();
+        const transcript = getTranscriptText();
         if (!transcript) {
             lectureError.innerText = "Transcript is empty.";
             return;

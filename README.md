@@ -1,20 +1,18 @@
 # ClassCapsule — AI Lecture Assistant
 
-**Turn your lectures into clear, organized notes with AI.**
+Turn your lectures into clear, organized notes with AI.
 
-🌐 **Live demo:** [https://classcapsule.onrender.com/](https://classcapsule.onrender.com/)
+**Live demo:** [https://classcapsule.onrender.com/](https://classcapsule.onrender.com/)
 
-ClassCapsule is a lightweight lecture assistant with an HTML/CSS/JavaScript frontend and a FastAPI backend. It can transcribe uploaded lecture audio, capture speech through the browser where supported, and summarize transcripts using a hosted AI model through the Groq API.
+ClassCapsule provides a browser-based interface for transcribing lecture audio and generating summaries through a FastAPI backend and a hosted AI API.
 
 ## Features
 
-- Transcribe uploaded audio using a hosted speech-to-text model.
-- Capture live speech using the browser's Web Speech API (browser support required).
-- Generate concise lecture summaries from transcripts using a hosted language model.
-- Choose the configured hosted summarization model from the model selector.
+- Transcribe uploaded audio using the configured hosted speech-to-text model.
+- Capture live speech in supported browsers using the Web Speech API.
+- Summarize transcripts with a hosted language model.
 - Edit transcripts before summarizing.
-- Download the transcript and summary as text files.
-- Support multiple speech-recognition languages in browsers that provide them.
+- Download transcript and summary text files.
 
 ## Tech stack
 
@@ -23,21 +21,13 @@ ClassCapsule is a lightweight lecture assistant with an HTML/CSS/JavaScript fron
 - **Hosted AI:** Groq API
 - **Deployment:** Render
 
-## Live demo
-
-Try ClassCapsule here: [https://classcapsule.onrender.com/](https://classcapsule.onrender.com/)
-
-The demo may take a little time to respond after inactivity because Render's free web services can spin down. AI availability is also subject to the provider's account limits, model availability, and rate limits.
-
 ## Local installation
 
-### Prerequisites
+### Requirements
 
-- Python 3.11 (recommended; the deployment configuration uses Python 3.11.11)
+- Python 3.11 recommended
 - Git
 - A Groq API key: [Create one in Groq Console](https://console.groq.com/keys)
-
-You do **not** need to install Ollama, download a local language model, or install FFmpeg for this hosted-AI version. Uploaded-audio transcription is handled by the hosted API.
 
 ### 1. Clone the repository
 
@@ -55,29 +45,30 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-If PowerShell blocks activation, you can use Command Prompt instead:
+**Windows Command Prompt:**
 
 ```bat
+py -3.11 -m venv .venv
 .venv\Scripts\activate.bat
 ```
 
-**macOS / Linux:**
+**macOS/Linux:**
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install Python dependencies
+### 3. Install dependencies
 
 ```bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-### 4. Configure your Groq API key
+### 4. Configure the API key
 
-Set the key in the terminal where you will run the server. Do not commit your API key to Git or put it in frontend JavaScript.
+Set `GROQ_API_KEY` in the terminal you will use to run the app. Do not put the key in frontend code or commit it to Git.
 
 **Windows PowerShell:**
 
@@ -85,49 +76,52 @@ Set the key in the terminal where you will run the server. Do not commit your AP
 $env:GROQ_API_KEY = "your_actual_groq_api_key"
 ```
 
-**macOS / Linux (bash/zsh):**
+**macOS/Linux:**
 
 ```bash
 export GROQ_API_KEY="your_actual_groq_api_key"
 ```
 
-Optional model overrides (defaults are shown):
-
-```text
-GROQ_CHAT_MODEL=openai/gpt-oss-20b
-GROQ_STT_MODEL=whisper-large-v3-turbo
-```
-
-Check [Groq's current model documentation](https://console.groq.com/docs/models) for availability and supported limits. The API key and any model quotas are managed by Groq, separately from Render hosting.
+The optional model environment variables are `GROQ_CHAT_MODEL` and `GROQ_STT_MODEL`. Check [Groq's model documentation](https://console.groq.com/docs/models) for currently supported models and limits.
 
 ### 5. Start the application
 
-Run this command from the repository root:
+Run from the repository root:
 
 ```bash
 python -m uvicorn backend.app:app --reload
 ```
 
-Open the app in your browser:
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). API documentation is available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs). Keep the terminal open while using the app; press `Ctrl+C` to stop the server.
 
-- **Application:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **API documentation:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **Health check:** [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-
-Keep the terminal open while using the app. Press `Ctrl+C` to stop the server. If you open a new terminal, activate `.venv` and set `GROQ_API_KEY` again before starting the app.
+More detailed instructions and troubleshooting are in [LOCAL_INSTALLATION.md](LOCAL_INSTALLATION.md).
 
 ## Deploy on Render
 
-This repository includes `render.yaml` for Render Blueprint deployment.
+This repository is configured for Render Blueprint deployment using `render.yaml`.
 
-1. Push the project to GitHub, including `render.yaml` at the repository root.
-2. In [Render Dashboard](https://dashboard.render.com/), select **New → Blueprint** and connect the repository.
-3. Keep the service root directory blank because `backend/`, `frontend/`, and `requirements.txt` are at the repository root.
-4. When prompted, set `GROQ_API_KEY` as a secret environment variable. Never add the real key to `render.yaml` or commit it to Git.
-5. Apply the Blueprint and wait for the service deployment to complete.
-6. Set the service's branch and auto-deploy settings to match the branch you push to if you want commits to trigger deployments automatically.
+1. Make sure `render.yaml` is in the **repository root**, next to `requirements.txt`.
+2. The deployment branch for this project is **`test-v3`**. Ensure the service's `branch` field in `render.yaml` is set to `test-v3` and that Render is connected to that branch.
+3. Commit and push changes to `test-v3`:
 
-The Render service serves the frontend and API from the same URL. The health check is `/health`.
+   ```bash
+   git add .
+   git commit -m "Describe your changes"
+   git push origin test-v3
+   ```
+
+4. In [Render Dashboard](https://dashboard.render.com/), select **New → Blueprint** and connect the repository if you have not already done so.
+5. Set `GROQ_API_KEY` as a secret environment variable in Render. Do not commit your real API key or place it in `render.yaml`.
+6. To deploy new commits automatically, open the service's **Settings → Build & Deploy** and set **Auto-Deploy** to **On Commit**. Also make sure Blueprint auto-sync is enabled if you want changes to the Blueprint configuration in Git to sync automatically.
+
+The `branch: test-v3` value in `render.yaml` should match the branch you push to. After setup, pushes to `test-v3` should trigger deployments when auto-deploy is enabled. If they do not, check the linked repository, branch, and service auto-deploy setting in Render.
+
+## Notes
+
+- Groq API usage has provider-specific rate limits and model availability; check the current plan and quotas.
+- Render free web services may spin down after inactivity, so the first request after a quiet period can be slow.
+- Files stored on Render's default filesystem may not persist across restarts or redeployments.
+- Browser-based live speech recognition depends on browser support.
 
 ## Project structure
 
@@ -143,16 +137,9 @@ ClassCapsule/
 ├── render.yaml
 ├── .python-version
 ├── .gitignore
-└── README.md
+├── README.md
+└── LOCAL_INSTALLATION.md
 ```
-
-## Notes and limitations
-
-- **API usage:** Groq's availability, pricing, quotas, and rate limits depend on its current plan and model. Check the provider's documentation before processing long recordings.
-- **Free hosting:** Render free web services may spin down after inactivity, so the first request after a quiet period can be slow.
-- **Saved files:** The backend writes generated text under `data/`. Files on Render's default filesystem are not durable across all restarts or redeployments; use persistent or external storage if you need long-term retention.
-- **Live microphone recording:** This feature depends on browser support for the Web Speech API. Uploaded audio uses the hosted transcription API.
-- **Privacy:** Do not upload sensitive or confidential recordings unless you are comfortable with the relevant provider's data-handling terms.
 
 ## Author
 

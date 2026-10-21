@@ -1,39 +1,38 @@
 # ClassCapsule — Local Installation Guide
 
-This guide runs ClassCapsule locally while using Groq's hosted API for audio transcription and text summarization. You do not need Ollama, local AI model downloads, or FFmpeg for this version.
+This guide explains how to run ClassCapsule locally while using the hosted Groq API for AI features.
 
 ## Requirements
 
 - Python 3.11 recommended
 - Git
-- A Groq API key from https://console.groq.com/keys
+- A Groq API key from [Groq Console](https://console.groq.com/keys)
 
-## 1. Get the source code
+## 1. Get the project
 
 ```bash
 git clone https://github.com/shivmodi21/ClassCapsule.git
 cd ClassCapsule
 ```
 
-If you already have the repository, open a terminal in its root directory instead.
+If you already have the project, open a terminal at its root directory.
 
-## 2. Create a virtual environment
+## 2. Create and activate a virtual environment
 
-### Windows PowerShell
+**Windows PowerShell:**
 
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-### Windows Command Prompt
+If PowerShell activation is blocked, use Command Prompt:
 
 ```bat
-py -3.11 -m venv .venv
 .venv\Scripts\activate.bat
 ```
 
-### macOS / Linux
+**macOS/Linux:**
 
 ```bash
 python3.11 -m venv .venv
@@ -42,63 +41,66 @@ source .venv/bin/activate
 
 ## 3. Install dependencies
 
+From the repository root, run:
+
 ```bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## 4. Set your API key
+## 4. Set the Groq API key
 
-Create a key at https://console.groq.com/keys. Set it in the same terminal you will use to launch the app.
+Create an API key at [https://console.groq.com/keys](https://console.groq.com/keys). Set it in the same terminal session that will run the backend.
 
-### Windows PowerShell
+**Windows PowerShell:**
 
 ```powershell
 $env:GROQ_API_KEY = "your_actual_groq_api_key"
 ```
 
-### Windows Command Prompt
+**Windows Command Prompt:**
 
 ```bat
 set GROQ_API_KEY=your_actual_groq_api_key
 ```
 
-### macOS / Linux
+**macOS/Linux:**
 
 ```bash
 export GROQ_API_KEY="your_actual_groq_api_key"
 ```
 
-Do not paste the real key into source code or commit it to GitHub. The application reads these environment variables when the backend starts.
+Optional model overrides can be set as environment variables `GROQ_CHAT_MODEL` and `GROQ_STT_MODEL`. Check [Groq's model documentation](https://console.groq.com/docs/models) for currently supported models. Never commit your actual API key to GitHub.
 
-Optional model overrides:
+## 5. Launch the app
 
-```text
-GROQ_CHAT_MODEL=openai/gpt-oss-20b
-GROQ_STT_MODEL=whisper-large-v3-turbo
-```
-
-These are defaults; confirm current availability in https://console.groq.com/docs/models.
-
-## 5. Run the server
-
-From the project root, with the virtual environment activated and the API key set:
+Make sure your virtual environment is active and `GROQ_API_KEY` is set, then run this command from the project root:
 
 ```bash
 python -m uvicorn backend.app:app --reload
 ```
 
-Open:
+Open the app at [http://127.0.0.1:8000](http://127.0.0.1:8000). OpenAPI documentation is at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs). Press `Ctrl+C` in the terminal to stop the server.
 
-- App: http://127.0.0.1:8000
-- API docs: http://127.0.0.1:8000/docs
-- Health check: http://127.0.0.1:8000/health
-
-Keep the terminal running while you use the app. Press `Ctrl+C` to stop it. After restarting the terminal, reactivate `.venv` and set the API key again.
+When opening a new terminal, reactivate `.venv` and set `GROQ_API_KEY` again.
 
 ## Troubleshooting
 
-- **AI provider not configured:** Ensure `GROQ_API_KEY` is set in the same terminal and restart Uvicorn.
-- **Authentication or quota error:** Verify the key in Groq Console and check the account's current model access, usage, and rate limits.
-- **Model unavailable:** Set `GROQ_CHAT_MODEL` or `GROQ_STT_MODEL` to a currently supported model, then restart the server.
-- **Frontend doesn't load:** Run Uvicorn from the repository root so the `backend/` and `frontend/` paths resolve correctly.
+- **API key missing:** Set `GROQ_API_KEY` in the same terminal before launching Uvicorn.
+- **Authentication error:** Verify the key in Groq Console.
+- **Rate limit or quota error:** Check your Groq account's current limits and model availability.
+- **App or frontend not found:** Run Uvicorn from the repository root, where the `backend/` and `frontend/` directories are located.
+
+## Render deployment branch
+
+The project's deployment branch is **`test-v3`**. For a Render deployment, make sure `render.yaml` is in the repository root and its service configuration points to `test-v3`.
+
+Push changes to that branch with:
+
+```bash
+git add .
+git commit -m "Describe your changes"
+git push origin test-v3
+```
+
+For automatic deployments, open the service in [Render Dashboard](https://dashboard.render.com/), go to **Settings → Build & Deploy**, and set **Auto-Deploy** to **On Commit**. If using a Blueprint, enable auto-sync as well if you want Blueprint configuration changes to sync from Git.

@@ -3,6 +3,7 @@ services:
     name: Class Capsule
     runtime: python
     plan: free
+    branch: test-v3
     autoDeployTrigger: commit
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -k uvicorn.workers.UvicornWorker backend.app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120

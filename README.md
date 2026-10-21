@@ -1,186 +1,158 @@
-# 🎓 ClassCapsule – Student Assistant
+# ClassCapsule — AI Lecture Assistant
 
-ClassCapsule is a lightweight **Student Assistant** designed to help summarize lecture transcripts and assist students during their learning.  
-It uses a **FastAPI backend** and a simple **HTML/CSS/JS frontend**, making it easy to prototype and extend.
+**Turn your lectures into clear, organized notes with AI.**
 
----
+🌐 **Live demo:** [https://classcapsule.onrender.com/](https://classcapsule.onrender.com/)
 
-## 🚀 Features
-- Lecture transcript summarization
-- Simple backend API using FastAPI
-- Lightweight frontend (HTML + CSS + JS)
-- Easy local setup for development and testing
+ClassCapsule is a lightweight lecture assistant with an HTML/CSS/JavaScript frontend and a FastAPI backend. It can transcribe uploaded lecture audio, capture speech through the browser where supported, and summarize transcripts using a hosted AI model through the Groq API.
 
----
+## Features
 
-## 🛠️ Tech Stack
-- **Backend:** Python, FastAPI, Uvicorn
+- Transcribe uploaded audio using a hosted speech-to-text model.
+- Capture live speech using the browser's Web Speech API (browser support required).
+- Generate concise lecture summaries from transcripts using a hosted language model.
+- Choose the configured hosted summarization model from the model selector.
+- Edit transcripts before summarizing.
+- Download the transcript and summary as text files.
+- Support multiple speech-recognition languages in browsers that provide them.
+
+## Tech stack
+
 - **Frontend:** HTML, CSS, JavaScript
-- **Environment:** Python Virtual Environment (`.venv`)
+- **Backend:** Python, FastAPI, Uvicorn
+- **Hosted AI:** Groq API
+- **Deployment:** Render
 
----
+## Live demo
 
-## 📦 Installation & Setup
+Try ClassCapsule here: [https://classcapsule.onrender.com/](https://classcapsule.onrender.com/)
+
+The demo may take a little time to respond after inactivity because Render's free web services can spin down. AI availability is also subject to the provider's account limits, model availability, and rate limits.
+
+## Local installation
 
 ### Prerequisites
-- Python 3.10+
-- Git
-- FFmpeg (required for audio transcription)
 
-### 1️⃣ Clone the Repository
+- Python 3.11 (recommended; the deployment configuration uses Python 3.11.11)
+- Git
+- A Groq API key: [Create one in Groq Console](https://console.groq.com/keys)
+
+You do **not** need to install Ollama, download a local language model, or install FFmpeg for this hosted-AI version. Uploaded-audio transcription is handled by the hosted API.
+
+### 1. Clone the repository
+
 ```bash
 git clone https://github.com/shivmodi21/ClassCapsule.git
 cd ClassCapsule
-````
-
----
-
-### 2️⃣ Create and Activate Virtual Environment
-
-#### On Windows
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
 ```
 
-#### On macOS / Linux
+### 2. Create and activate a virtual environment
+
+**Windows PowerShell:**
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+If PowerShell blocks activation, you can use Command Prompt instead:
+
+```bat
+.venv\Scripts\activate.bat
+```
+
+**macOS / Linux:**
 
 ```bash
-python -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 ```
 
----
-
-### 3️⃣ Install Dependencies
+### 3. Install Python dependencies
 
 ```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-#### Install FFmpeg (Required for Whisper)
+### 4. Configure your Groq API key
 
-#### Windows
-1. Download FFmpeg (ffmpeg-release-essentials.zip) from https://www.gyan.dev/ffmpeg/builds/
-2. Extract to `C:\ffmpeg`
-3. Add `C:\ffmpeg\bin` to PATH
-4. Restart terminal
+Set the key in the terminal where you will run the server. Do not commit your API key to Git or put it in frontend JavaScript.
 
-Verify:
-```bash
-ffmpeg -version
+**Windows PowerShell:**
+
+```powershell
+$env:GROQ_API_KEY = "your_actual_groq_api_key"
 ```
----
 
-#### Install Ollama
-
-Download and install:
-
-👉 [https://ollama.com/download](https://ollama.com/download)
-
-After installation verify:
+**macOS / Linux (bash/zsh):**
 
 ```bash
-ollama --version
+export GROQ_API_KEY="your_actual_groq_api_key"
 ```
 
----
+Optional model overrides (defaults are shown):
 
-#### 🤖 Install AI Models
-
-ClassCapsule uses **local AI models** via Ollama. The app lists models that are already installed. It does not download them for you.
-
-Keep the backend terminal running. Use a **second terminal** for Ollama.
-
-##### If the model dropdown shows an error
-
-Ollama is not running. In that second terminal, start it and leave it open:
-
-```bash
-ollama serve
+```text
+GROQ_CHAT_MODEL=openai/gpt-oss-20b
+GROQ_STT_MODEL=whisper-large-v3-turbo
 ```
 
-Then refresh http://127.0.0.1:8000, or click **Check for models** in the page.
+Check [Groq's current model documentation](https://console.groq.com/docs/models) for availability and supported limits. The API key and any model quotas are managed by Groq, separately from Render hosting.
 
-##### Choose a model and install it
+### 5. Start the application
 
-Pick one model and run its command in the second terminal. Then refresh the page.
-
-| Model | Command | Rough size |
-| --- | --- | --- |
-| Llama 3.2 3B | `ollama pull llama3.2` | about 2 GB |
-| Gemma 2 2B | `ollama pull gemma2:2b` | about 1.6 GB |
-| Qwen 2.5 3B | `ollama pull qwen2.5:3b` | about 2 GB |
-| Phi-3 mini | `ollama pull phi3` | about 2.2 GB |
-| Mistral 7B | `ollama pull mistral` | about 4.5 GB |
-
-Mistral needs about **4.5GB+ free RAM**. The smaller models are a better fit on CPU.
-
-You can install a different Ollama text model the same way. In the app, type that model name under the dropdown. The page shows the exact `ollama pull` command to run in the other terminal. After the download finishes, click **Check for models**.
-
----
-
-## ▶️ Running the Application
-
-### Start Backend Server
+Run this command from the repository root:
 
 ```bash
 python -m uvicorn backend.app:app --reload
 ```
 
-The website and API start at:
+Open the app in your browser:
 
-```
-http://127.0.0.1:8000
-```
+- **Application:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **API documentation:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Health check:** [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 
-Open that address in **Chrome** or **Microsoft Edge**. You do not need to open `frontend/index.html` separately.
+Keep the terminal open while using the app. Press `Ctrl+C` to stop the server. If you open a new terminal, activate `.venv` and set `GROQ_API_KEY` again before starting the app.
 
----
+## Deploy on Render
 
-## 📁 Project Structure
+This repository includes `render.yaml` for Render Blueprint deployment.
+
+1. Push the project to GitHub, including `render.yaml` at the repository root.
+2. In [Render Dashboard](https://dashboard.render.com/), select **New → Blueprint** and connect the repository.
+3. Keep the service root directory blank because `backend/`, `frontend/`, and `requirements.txt` are at the repository root.
+4. When prompted, set `GROQ_API_KEY` as a secret environment variable. Never add the real key to `render.yaml` or commit it to Git.
+5. Apply the Blueprint and wait for the service deployment to complete.
+6. Set the service's branch and auto-deploy settings to match the branch you push to if you want commits to trigger deployments automatically.
+
+The Render service serves the frontend and API from the same URL. The health check is `/health`.
+
+## Project structure
 
 ```text
 ClassCapsule/
-│
 ├── backend/
-│   └── app.py          # FastAPI backend
-│
+│   └── app.py
 ├── frontend/
-│   └── index.html
-│   └── style.css
+│   ├── index.html
+│   ├── style.css
 │   └── script.js
-│
-├── .gitignore          # Cache and Data to be ignored by git
-├── requirements.txt    # Python dependencies
-├── README.md
-└── .venv/              # Virtual environment (ignored by git)
+├── requirements.txt
+├── render.yaml
+├── .python-version
+├── .gitignore
+└── README.md
 ```
 
----
+## Notes and limitations
 
-## 🧪 Development Notes
-
-* The backend supports hot reload using `--reload`
-* The frontend communicates with the backend API
-* Designed as a prototype-friendly architecture
-
----
-
-## 🤝 Contributing
-
-Contributions, bug reports, and feature requests are welcome.
-Feel free to fork the repository and submit a pull request.
-
----
-
-## 📄 License
-
-This project is open-source and intended for educational purposes.
-
----
+- **API usage:** Groq's availability, pricing, quotas, and rate limits depend on its current plan and model. Check the provider's documentation before processing long recordings.
+- **Free hosting:** Render free web services may spin down after inactivity, so the first request after a quiet period can be slow.
+- **Saved files:** The backend writes generated text under `data/`. Files on Render's default filesystem are not durable across all restarts or redeployments; use persistent or external storage if you need long-term retention.
+- **Live microphone recording:** This feature depends on browser support for the Web Speech API. Uploaded audio uses the hosted transcription API.
+- **Privacy:** Do not upload sensitive or confidential recordings unless you are comfortable with the relevant provider's data-handling terms.
 
 ## Author
 

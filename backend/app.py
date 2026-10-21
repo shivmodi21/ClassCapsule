@@ -411,7 +411,7 @@ async def get_models():
     return {
         "models": [{
             "id": GROQ_CHAT_MODEL,
-            "name": f"{GROQ_CHAT_MODEL} (hosted)",
+            "name": f"{GROQ_CHAT_MODEL}",
             "memory_required_gb": None,
         }]
     }

@@ -277,7 +277,7 @@ document.addEventListener("DOMContentLoaded", () => {
             selectedModel = selectedOption.value;
             const memory = selectedOption.dataset.memory;
             modelMemoryInfo.innerText = memory
-                ? `Hosted model (no local model download)`
+                ? `Hosted model`
                 : "Hosted AI model";
         });
     }
@@ -320,7 +320,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 modelSelect.appendChild(option);
                 if (index === 0) {
                     selectedModel = model.id;
-                    modelMemoryInfo.innerText = "Hosted model (no local model download)";
+                    modelMemoryInfo.innerText = "Hosted model";
                 }
             });
             bindModelSelect();
